@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "WorkforceDataApi.DevUtils --help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    },
+    "WorkforceDataApi.DevUtils migratedb": {
+      "commandName": "Project",
+      "commandLineArgs": "migratedb"
+    },
+    "WorkforceDataApi.DevUtils inserttestdata": {
+      "commandName": "Project",
+      "commandLineArgs": "inserttestdata"
+    },
+    "WorkforceDataApi.DevUtils generatetestcsv": {
+      "commandName": "Project",
+      "commandLineArgs": "generatetestcsv"
+    }
+  }
+}
