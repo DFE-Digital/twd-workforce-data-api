@@ -26,7 +26,7 @@ public class TpsCsvProcessor : ITpsCsvProcessor
         }
 
         using var reader = new StreamReader(csvFileName);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = false });
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true });
         csv.Context.RegisterClassMap<TpsExtractDataItemReaderMap>();
 
         int i = 0;
@@ -36,7 +36,7 @@ public class TpsCsvProcessor : ITpsCsvProcessor
             if (i != 0 && i % 10_000 == 0)
             {
                 await _dbContext.SaveChangesAsync();
-                _logger.LogInformation($"Saved {i} TPS extract data items in Postgres workload database.");
+                _logger.LogInformation("Saved {i} TPS extract data items in Postgres workload database.", i);
             }
 
             i++;
@@ -45,7 +45,7 @@ public class TpsCsvProcessor : ITpsCsvProcessor
         if (_dbContext.ChangeTracker.HasChanges())
         {
             await _dbContext.SaveChangesAsync();
-            _logger.LogInformation($"Saved {i} TPS extract data items in Postgres workload database.");
+            _logger.LogInformation("Saved {i} TPS extract data items in Postgres workload database.", i);
         }
     }
 }

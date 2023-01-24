@@ -9,9 +9,11 @@ public class TpsExtractDataItemMapping : IEntityTypeConfiguration<TpsExtractData
     {
         builder.ToTable("tps_extract_data_item");
         builder.HasKey(u => u.TpsExtractDataItemId);
+        builder.Property(u => u.MemberId).IsRequired();
+        builder.HasIndex(u => u.MemberId).HasDatabaseName(TpsExtractDataItem.MemberIdIndexName);
         builder.Property(u => u.TeachingStatus).HasMaxLength(TpsExtractDataItem.TeachingStatusFixedLength).IsFixedLength().IsRequired();
         builder.Property(u => u.Trn).HasMaxLength(TpsExtractDataItem.TrnFixedLength).IsFixedLength().IsRequired();
-        builder.HasIndex(u => u.Trn);
+        builder.HasIndex(u => u.Trn).HasDatabaseName(TpsExtractDataItem.TrnIndexName);
         builder.Property(u => u.FirstName).HasMaxLength(TpsExtractDataItem.FirstNameMaxLength).IsRequired();
         builder.Property(u => u.LastName).HasMaxLength(TpsExtractDataItem.LastNameMaxLength).IsRequired();
         builder.Property(u => u.Nino).HasMaxLength(TpsExtractDataItem.NinoFixedLength).IsFixedLength().IsRequired();

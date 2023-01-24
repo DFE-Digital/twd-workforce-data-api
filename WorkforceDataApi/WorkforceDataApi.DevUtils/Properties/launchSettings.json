@@ -8,13 +8,21 @@
       "commandName": "Project",
       "commandLineArgs": "migratedb"
     },
-    "WorkforceDataApi.DevUtils inserttestdata": {
+    "WorkforceDataApi.DevUtils importtpscsv": {
       "commandName": "Project",
-      "commandLineArgs": "inserttestdata"
+      "commandLineArgs": "importtpscsv"
     },
-    "WorkforceDataApi.DevUtils generatetestcsv": {
+    "WorkforceDataApi.DevUtils generatemockdata": {
       "commandName": "Project",
-      "commandLineArgs": "generatetestcsv"
+      "commandLineArgs": "generatemockdata"
+    },
+    "WorkforceDataApi.DevUtils generatemockdata --help": {
+      "commandName": "Project",
+      "commandLineArgs": "generatemockdata --help"
+    },
+    "WorkforceDataApi.DevUtils generatemockdata --teachers 1000": {
+      "commandName": "Project",
+      "commandLineArgs": "generatemockdata --teachers 1000"
     }
   }
 }

@@ -5,16 +5,6 @@ namespace WorkforceDataApi.DevUtils.Services;
 
 public static class RandomizerExtensions
 {
-    public static string LocalAuthorityNumber(this Randomizer randomizer)
-    {
-        return randomizer.Number(0, 999).ToString("000");
-    }
-
-    public static string EstablishmentNumber(this Randomizer randomizer)
-    {
-        return randomizer.Number(0, 9999).ToString("0000");
-    }
-
     public static FullOrPartTimeIndicatorType FullOrPartTimeIndicator(this Randomizer randomizer)
     {
         // Distribution we'll use is:

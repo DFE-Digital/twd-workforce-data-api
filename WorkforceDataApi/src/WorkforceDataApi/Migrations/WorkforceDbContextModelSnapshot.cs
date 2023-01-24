@@ -88,6 +88,11 @@ namespace WorkforceDataApi.Migrations
                         .HasColumnName("local_authority_number")
                         .IsFixedLength();
 
+                    b.Property<string>("MemberId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("member_id");
+
                     b.Property<string>("MemberPostcode")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -121,6 +126,9 @@ namespace WorkforceDataApi.Migrations
 
                     b.HasKey("TpsExtractDataItemId")
                         .HasName("pk_tps_extract_data_item");
+
+                    b.HasIndex("MemberId")
+                        .HasDatabaseName("ix_tps_extract_data_item_member_id");
 
                     b.HasIndex("Trn")
                         .HasDatabaseName("ix_tps_extract_data_item_trn");

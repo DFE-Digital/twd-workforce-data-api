@@ -19,6 +19,7 @@ namespace WorkforceDataApi.Migrations
                 columns: table => new
                 {
                     tpsextractdataitemid = table.Column<string>(name: "tps_extract_data_item_id", type: "text", nullable: false),
+                    memberid = table.Column<string>(name: "member_id", type: "text", nullable: false),
                     teachingstatus = table.Column<string>(name: "teaching_status", type: "character(1)", fixedLength: true, maxLength: 1, nullable: false),
                     trn = table.Column<string>(type: "character(7)", fixedLength: true, maxLength: 7, nullable: false),
                     firstname = table.Column<string>(name: "first_name", type: "character varying(200)", maxLength: 200, nullable: false),
@@ -40,6 +41,11 @@ namespace WorkforceDataApi.Migrations
                 {
                     table.PrimaryKey("pk_tps_extract_data_item", x => x.tpsextractdataitemid);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_tps_extract_data_item_member_id",
+                table: "tps_extract_data_item",
+                column: "member_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_tps_extract_data_item_trn",

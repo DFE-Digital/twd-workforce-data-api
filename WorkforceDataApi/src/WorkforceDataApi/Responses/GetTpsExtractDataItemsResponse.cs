@@ -9,7 +9,7 @@ public record GetTpsExtractDataItemsResponse
 
 public record GetTpsExtractDataItemResponseBody
 {
-    public required string TpsExtractDataItemId { get; init; }
+    public required string MemberId { get; init; }
     public required string TeachingStatus { get; init; }
     public required string Trn { get; init; }
     public required string FirstName { get; init; }

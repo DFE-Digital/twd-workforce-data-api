@@ -1,6 +1,7 @@
 using Bogus;
 using Bogus.Extensions.UnitedKingdom;
-using TeacherIdentity.AuthServer.Models;
+using Microsoft.Extensions.Logging;
+using WorkforceDataApi.DevUtils.Models;
 using WorkforceDataApi.Models;
 using static Bogus.DataSets.Name;
 
@@ -9,13 +10,22 @@ namespace WorkforceDataApi.DevUtils.Services;
 public class TestDataGenerator
 {
     private readonly Randomizer commonRandomizer = new Randomizer();
-
+    private readonly IEstablishmentGenerationService _establishmentGenerationService;
+    private readonly ILogger<TestDataGenerator> _logger;
     private int teachersGenerated = 0;
     private int leaversGenerated = 0;
     private int newStartersGenerated = 0;
     private int supplyTeachersGenerated = 0;
     private int changeJobTeachersGenerated = 0;
     private int noChangeTeachersGenerated = 0;
+
+    public TestDataGenerator(
+        IEstablishmentGenerationService establishmentGenerationService,
+        ILogger<TestDataGenerator> logger)
+    {
+        _establishmentGenerationService = establishmentGenerationService;
+        _logger = logger;
+    }
 
     /// <summary>
     /// Generate Test Data with as realistic distribution of data representing teacher workforce data over a 12 month period.
@@ -34,7 +44,10 @@ public class TestDataGenerator
     /// <returns>
     /// An enumerable list if TPS extract data items.
     /// </returns>
-    public IEnumerable<TpsExtractDataItem> GenerateTestData(DateOnly startDate, int months = 12, int teacherCount = 700_000)
+    public IEnumerable<WorkforceData> GenerateTestData(
+        DateOnly startDate,
+        int months = 12,
+        int teacherCount = 700_000)
     {
         List<DateRange> dateRanges = new List<DateRange>();
         var startDateRange = new DateOnly(startDate.Year, startDate.Month, 1);
@@ -50,9 +63,24 @@ public class TestDataGenerator
 
         var endDateRange = endOfMonth;
 
-        var teacherFaker = GetTeacherFaker();
-        var establishmentFaker = GetEstablishmentFaker();
-        var faker = new Faker<TpsExtractDataItem[]>("en_GB")
+        // Generate all possible TRNs and randomise list to use to generate unique TRNs
+        var trns = Enumerable.Range(1000000, 8999999);
+        var randomised = commonRandomizer.Shuffle(trns);
+        var enumerator = randomised.GetEnumerator();
+
+        var teacherFaker = GetTeacherFaker(() =>
+        {
+            if (!enumerator.MoveNext())
+            {
+                enumerator.Reset();
+                enumerator.MoveNext();
+            }
+
+            var trn = enumerator.Current;
+            return trn.ToString();
+        });
+
+        var workforceDataFaker = new Faker<WorkforceData>("en_GB")
             .CustomInstantiator((f) =>
             {
                 var teacher = teacherFaker.Generate();
@@ -97,7 +125,7 @@ public class TestDataGenerator
                     var schools = new List<Establishment>();
                     for (int i = 0; i < numberOfDifferentSchools; i++)
                     {
-                        schools.Add(establishmentFaker.Generate());
+                        schools.Add(_establishmentGenerationService.Generate());
                     }
 
                     var availableSchools = schools.ToArray();                                        
@@ -152,6 +180,7 @@ public class TestDataGenerator
                         var dataItem = new TpsExtractDataItem
                         {
                             TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
                             TeachingStatus = teacher.TeachingStatus,
                             Trn = teacher.Trn,
                             FirstName = teacher.FirstName,
@@ -181,6 +210,7 @@ public class TestDataGenerator
                     var lastSchoolDataItem = new TpsExtractDataItem
                     {
                         TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                        MemberId = teacher.MemberId,
                         TeachingStatus = teacher.TeachingStatus,
                         Trn = teacher.Trn,
                         FirstName = teacher.FirstName,
@@ -207,6 +237,7 @@ public class TestDataGenerator
                         var leaverDataItem = new TpsExtractDataItem
                         {
                             TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
                             TeachingStatus = "L",
                             Trn = teacher.Trn,
                             FirstName = teacher.FirstName,
@@ -236,10 +267,11 @@ public class TestDataGenerator
                     var changeSchoolStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
                     var created = f.Date.Recent();
 
-                    var firstSchool = establishmentFaker.Generate();
+                    var firstSchool = _establishmentGenerationService.Generate();
                     var firstSchoolDataItem = new TpsExtractDataItem
                     {
                         TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                        MemberId = teacher.MemberId,
                         TeachingStatus = teacher.TeachingStatus,
                         Trn = teacher.Trn,
                         FirstName = teacher.FirstName,
@@ -258,10 +290,11 @@ public class TestDataGenerator
                         Updated = created
                     };
 
-                    var secondSchool = establishmentFaker.Generate();
+                    var secondSchool = _establishmentGenerationService.Generate();
                     var secondSchoolDataItem = new TpsExtractDataItem
                     {
                         TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                        MemberId = teacher.MemberId,
                         TeachingStatus = teacher.TeachingStatus,
                         Trn = teacher.Trn,
                         FirstName = teacher.FirstName,
@@ -289,6 +322,7 @@ public class TestDataGenerator
                         var leaverDataItem = new TpsExtractDataItem
                         {
                             TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
                             TeachingStatus = "L",
                             Trn = teacher.Trn,
                             FirstName = teacher.FirstName,
@@ -316,10 +350,11 @@ public class TestDataGenerator
                 {
                     // Same school all year
                     var created = f.Date.Recent();
-                    var school = establishmentFaker.Generate();
+                    var school = _establishmentGenerationService.Generate();
                     var dataItem = new TpsExtractDataItem
                     {
                         TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                        MemberId = teacher.MemberId,
                         TeachingStatus = teacher.TeachingStatus,
                         Trn = teacher.Trn,
                         FirstName = teacher.FirstName,
@@ -346,6 +381,7 @@ public class TestDataGenerator
                         var leaverDataItem = new TpsExtractDataItem
                         {
                             TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
                             TeachingStatus = "L",
                             Trn = teacher.Trn,
                             FirstName = teacher.FirstName,
@@ -369,76 +405,51 @@ public class TestDataGenerator
 
                     noChangeTeachersGenerated++;
                 }
+
+                var workforceData = new WorkforceData
+                {
+                    Teacher = teacher,
+                    WorkforceDataItems = tpsExtractDataItems.ToArray()
+                };
                 
-                return tpsExtractDataItems.ToArray();
+                return workforceData;
             });
 
-
-        foreach (var item in faker.GenerateLazy(teacherCount).SelectMany(i => i))
+        foreach (var item in workforceDataFaker.GenerateLazy(teacherCount))
         {
             yield return item;
         }
 
-        Console.WriteLine($"Total teachers generated              = {teachersGenerated}");
-        Console.WriteLine($"Total leavers generated               = {leaversGenerated}");
-        Console.WriteLine($"Total new starters generated          = {newStartersGenerated}");
-        Console.WriteLine($"Total supply teachers generated       = {supplyTeachersGenerated}");
-        Console.WriteLine($"Total teachers changing schools once  = {changeJobTeachersGenerated}");
-        Console.WriteLine($"Total teachers staying at same school = {noChangeTeachersGenerated}");
+        var leaversActualPercentage = Math.Round((double) (leaversGenerated * 100) / teachersGenerated, 2);
+        var newStartersActualPercentage = Math.Round((double)(newStartersGenerated * 100) / teachersGenerated);
+        var supplyTeachersPercentage = Math.Round((double)(supplyTeachersGenerated * 100) / teachersGenerated);
+        var changeJobTeachersPercentage = Math.Round((double)(changeJobTeachersGenerated * 100) / teachersGenerated);
+        var noChangeTeachersPercentage = Math.Round((double)(noChangeTeachersGenerated * 100) / teachersGenerated);        
+
+        _logger.LogInformation("Total teachers generated              = {teachersGenerated}", teachersGenerated);
+        _logger.LogInformation("Total leavers generated               = {leaversGenerated} ({leaversActualPercentage}%)", leaversGenerated, leaversActualPercentage);
+        _logger.LogInformation("Total new starters generated          = {newStartersGenerated} ({newStartersActualPercentage}%)", newStartersGenerated, newStartersActualPercentage);
+        _logger.LogInformation("Total supply teachers generated       = {supplyTeachersGenerated} ({supplyTeachersPercentage}%)", supplyTeachersGenerated, supplyTeachersPercentage);
+        _logger.LogInformation("Total teachers changing schools once  = {changeJobTeachersGenerated} ({changeJobTeachersPercentage}%)", changeJobTeachersGenerated, changeJobTeachersPercentage);
+        _logger.LogInformation("Total teachers staying at same school = {noChangeTeachersGenerated} ({noChangeTeachersPercentage}%)", noChangeTeachersGenerated, noChangeTeachersPercentage);
     }
 
-    private Faker<Teacher> GetTeacherFaker()
+    private Faker<Teacher> GetTeacherFaker(Func<string> trnGenerator)
     {
         var teacherFaker = new Faker<Teacher>("en_GB")
+           .RuleFor(i => i.MemberId, (f, i) => Guid.NewGuid().ToString())
            .RuleFor(i => i.TeachingStatus, (f, i) => commonRandomizer.TeachingStatus())
-           .RuleFor(i => i.Trn, (f, i) => commonRandomizer.Number(1000000, 9999999).ToString())
+           .RuleFor(i => i.Trn, (f, i) => trnGenerator())
            .RuleFor(i => i.FirstName, (f, i) => f.Name.FirstName(f.PickRandom<Gender>()))
            .RuleFor(i => i.LastName, (f, i) => f.Name.LastName())
            .RuleFor(i => i.Nino, (f, i) => f.Finance.Nino().Replace(" ", string.Empty))
            .RuleFor(i => i.DateOfBirth, (f, i) => f.Date.BetweenDateOnly(new DateOnly(1950, 1, 1), new DateOnly(2000, 1, 1)))
-           .RuleFor(i => i.EmailAddress, (f, i) => f.Internet.Email(i.FirstName, i.LastName))
+           .RuleFor(i => i.EmailAddress, (f, i) => f.Internet.Email(i.FirstName, i.LastName, uniqueSuffix: commonRandomizer.Number(1, 1000000).ToString()))
            .RuleFor(i => i.MemberPostcode, (f, i) => f.Address.ZipCode())
            .RuleFor(i => i.FullOrPartTimeIndicator, (f, i) => commonRandomizer.FullOrPartTimeIndicator());
 
         return teacherFaker;
     }
-
-    private Faker<Establishment> GetEstablishmentFaker()
-    {
-        var establishmentFaker = new Faker<Establishment>("en_GB")
-           .RuleFor(i => i.LocalAuthorityNumber, (f, i) => commonRandomizer.LocalAuthorityNumber())
-           .RuleFor(i => i.EstablishmentNumber, (f, i) => commonRandomizer.EstablishmentNumber())
-           .RuleFor(i => i.EstablishmentPostcode, (f, i) => f.Address.ZipCode());
-
-        return establishmentFaker;
-    }
-}
-
-public class Teacher
-{
-    public required string TeachingStatus { get; init; }
-    public required string Trn { get; init; }
-    public required string FirstName { get; init; }
-    public required string LastName { get; init; }
-    public required string Nino { get; init; }
-    public required DateOnly DateOfBirth { get; init; }
-    public required string EmailAddress { get; init; }
-    public required string MemberPostcode { get; init; }
-    public required FullOrPartTimeIndicatorType FullOrPartTimeIndicator { get; init; }    
-}
-
-public class EmploymentDetail
-{
-    public required Establishment Establishment { get; init; } 
-    public required DateOnly EmploymentPeriodStartDate { get; init; }
-    public required DateOnly EmploymentPeriodEndDate { get; init; }
-}
-
-public class Establishment
-{
-    public required string LocalAuthorityNumber { get; init; }
-    public required string EstablishmentNumber { get; init; }
-    public required string EstablishmentPostcode { get; init; }
 }
 
 public class DateRange

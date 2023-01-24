@@ -7,7 +7,8 @@ internal class TpsExtractDataItemWriterMap : ClassMap<TpsExtractDataItem>
 {
     public TpsExtractDataItemWriterMap()
     {
-        Map(i => i.TpsExtractDataItemId);        
+        Map(i => i.TpsExtractDataItemId);
+        Map(i => i.MemberId);
         Map(i => i.MemberPostcode);
         Map(i => i.Trn);
         Map(i => i.Nino);

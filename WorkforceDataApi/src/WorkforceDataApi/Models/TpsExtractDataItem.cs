@@ -14,10 +14,12 @@ public class TpsExtractDataItem
     public const int LocalAuthorityNumberFixedLength = 3;
     public const int EstablishmentNumberFixedLength = 4;
 
+    public const string MemberIdIndexName = "ix_tps_extract_data_item_member_id";
     public const string TrnIndexName = "ix_tps_extract_data_item_trn";
 
     public required string TpsExtractDataItemId { get; init; }
-    public required string TeachingStatus { get; init; }
+    public required string MemberId { get; init; }
+    public required string TeachingStatus { get; init; }    
     public required string Trn { get; init; }
     public required string FirstName { get; init; }
     public required string LastName { get; init; }

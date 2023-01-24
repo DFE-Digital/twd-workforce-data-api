@@ -71,9 +71,7 @@ if (builder.Environment.IsDevelopment())
     });
 }
 
-var tpsExtractDataItemsGroup = app.MapGroup("/api/v1/tps-extract-data-items");
-
-tpsExtractDataItemsGroup.MapGet("/", async (int trn, WorkforceDbContext dbContext) =>
+app.MapGet("/api/v1/tps-extract-data-items", async (int trn, WorkforceDbContext dbContext) =>
     {
         var items = await dbContext.TpsExtractDataItems
             .Where(i => i.Trn == trn.ToString())
@@ -87,6 +85,44 @@ tpsExtractDataItemsGroup.MapGet("/", async (int trn, WorkforceDbContext dbContex
 
         return Results.Ok(response);
     })
+    .WithTags("TPS Extract")
+    .Produces<GetTpsExtractDataItemsResponse>(StatusCodes.Status200OK);
+
+app.MapGet("/api/v1/tps-members", async (int trn, WorkforceDbContext dbContext) =>
+{
+    var member = await dbContext.TpsExtractDataItems
+        .Where(i => i.Trn == trn.ToString())
+        .FirstOrDefaultAsync(); 
+
+    if (member == null)
+    {
+        return Results.NotFound();
+    }
+
+    var response = new GetTpsMemberResponse
+    {
+        MemberId = member.MemberId,
+    };
+
+    return Results.Ok(response);
+})
+    .WithTags("TPS Extract")
+    .Produces<GetTpsExtractDataItemsResponse>(StatusCodes.Status200OK);
+
+app.MapGet("/api/v1/tps-extract-data-items", async (string memberId, WorkforceDbContext dbContext) =>
+{
+    var items = await dbContext.TpsExtractDataItems
+        .Where(i => i.MemberId == memberId)
+        .Select(i => i.Adapt<GetTpsExtractDataItemResponseBody>())
+        .ToListAsync();
+
+    var response = new GetTpsExtractDataItemsResponse
+    {
+        TpsExtractDataItems = items
+    };
+
+    return Results.Ok(response);
+})
     .WithTags("TPS Extract")
     .Produces<GetTpsExtractDataItemsResponse>(StatusCodes.Status200OK);
 
