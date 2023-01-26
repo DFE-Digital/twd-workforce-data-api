@@ -17,7 +17,9 @@ public class WorkforceDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder
-            .UseNpgsql(_connectionString)
+            .UseNpgsql(
+                _connectionString,
+                x => x.MigrationsHistoryTable("__EFMigrationsHistory", "workforce_data"))
             .UseSnakeCaseNamingConvention();
     }
 
