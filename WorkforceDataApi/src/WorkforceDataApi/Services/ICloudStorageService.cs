@@ -2,9 +2,9 @@ namespace WorkforceDataApi.Services;
 
 public interface ICloudStorageService
 {
-    Task<string[]> GetPendingProcessingTpsExtractFilenames(CancellationToken cancellationToken);
+    Task<string[]> GetPendingProcessingTpsExtractFilenames();
 
-    Task DownloadTpsExtractFile(string filename, CancellationToken cancellationToken);
+    Task DownloadTpsExtractFile(string filename);
 
-    Task ArchiveTpsExtractFile(string filename, CancellationToken cancellationToken);
+    Task ArchiveTpsExtractFile(string filename);
 }

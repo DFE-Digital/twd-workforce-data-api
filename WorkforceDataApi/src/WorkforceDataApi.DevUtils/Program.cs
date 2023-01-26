@@ -13,6 +13,7 @@ using WorkforceDataApi.DevUtils.Models;
 using WorkforceDataApi.DevUtils.Models.Identity;
 using WorkforceDataApi.DevUtils.Services;
 using WorkforceDataApi.Models;
+using WorkforceDataApi.Services;
 
 var rootCommand = CreateRootCommand();
 return await rootCommand.InvokeAsync(args);
@@ -22,12 +23,14 @@ static RootCommand CreateRootCommand()
     var migrateDatabaseCommand = CreateMigrateDatabaseCommand();
     var generateMockDataCommand = CreateGenerateMockDataCommand();
     var importTpsCsvCommand = CreateImportTpsCsvCommand();
+    var azureBlobCommand = CreateAzureBlobCommand();
 
     var rootCommand = new RootCommand("Workforce Data command line developer utilities.")
     {
         migrateDatabaseCommand,
         generateMockDataCommand,
         importTpsCsvCommand,
+        azureBlobCommand
     };
 
     return rootCommand;
@@ -85,73 +88,61 @@ static Command CreateGenerateMockDataCommand()
         description: "The % of teachers to generate who change schools once during the months we're generating data for.",
         getDefaultValue: () => 9);
 
+    var percentSupplyTeachersOption = new Option<int>(
+        name: "--percent-supply-teachers",
+        description: "The % of teachers are supply teachers working in up to 3 schools per month during the months we're generating data for.",
+        getDefaultValue: () => 1);
+
+    var percentNewStartersOption = new Option<int>(
+        name: "--percent-new-starters",
+        description: "The % of teachers start teaching during the months we're generating data for.",
+        getDefaultValue: () => 10);
+
+    var percentLeaversOption = new Option<int>(
+        name: "--percent-leavers",
+        description: "The % of teachers leaving teaching during the months we're generating data for.",
+        getDefaultValue: () => 8);
+
+    var percentPartTimeOption = new Option<int>(
+        name: "--percent-part-time",
+        description: "The % of teachers who work part-time during the months we're generating data for.",
+        getDefaultValue: () => 10);
+
     var generateMockDataCommand = new Command("generatemockdata", "Generate test data in the format expected from the TPS extract.")
     {
         directoryOption,
         monthsOption,
-        teachersOption
+        teachersOption,
+        percentChangeSchoolsOnceOption,
+        percentSupplyTeachersOption,
+        percentNewStartersOption,
+        percentLeaversOption,
+        percentPartTimeOption
     };
 
     generateMockDataCommand.SetHandler(
         GenerateMockData,
         directoryOption,
         monthsOption,
-        teachersOption);
+        teachersOption,
+        percentChangeSchoolsOnceOption,
+        percentSupplyTeachersOption,
+        percentNewStartersOption,
+        percentLeaversOption,
+        percentPartTimeOption);
 
     return generateMockDataCommand;
-}
-
-static Command CreateImportTpsCsvCommand()
-{
-    var filenameOption = new Option<string>(
-        name: "--filename",
-        description: "Filename of TPS extract CSV to import.",
-        getDefaultValue: () => "tps-extract.csv");
-    filenameOption.AddAlias("-f");
-
-    var insertTpsCsvCommand = new Command("importtpscsv", "Process TPS extract CSV file and insert data into the database.")
-    {
-        filenameOption
-    };
-
-    insertTpsCsvCommand.SetHandler(
-        ImportTpsCsv,
-        filenameOption);
-
-    return insertTpsCsvCommand;
-}
-
-static async Task ImportTpsCsv(string filename)
-{
-    var configBuilder = new ConfigurationBuilder()
-        .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
-
-    var config = configBuilder.Build();
-
-    var serilog = new LoggerConfiguration()
-        .ReadFrom.Configuration(config)
-        .CreateLogger();
-
-    var services = new ServiceCollection();
-    services.AddSingleton<IConfiguration>(config);
-    services.AddLogging(builder => builder.AddSerilog(serilog));
-    services.AddDbContext<WorkforceDbContext>();
-    services.AddSingleton<ITpsCsvProcessor, TpsCsvProcessor>();
-    var sp = services.BuildServiceProvider();
-
-    var tpsCsvProcessor = sp.GetRequiredService<ITpsCsvProcessor>();
-    await tpsCsvProcessor.Process(filename);
-    Console.WriteLine("Imported CSV");
 }
 
 static void GenerateMockData(
     string directory,
     int months,
-    int teachers)
+    int teachers,
+    int changeJobOncePercentage,
+    int supplyTeacherPercentage,
+    int newStarterPercentage,
+    int leaverPercentage,
+    int partTimePercentage)
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
@@ -176,7 +167,12 @@ static void GenerateMockData(
     var testData = testDataGenerator.GenerateTestData(
         DateOnly.FromDateTime(DateTime.Today.AddYears(-1).AddMonths(-1)),
         months,
-        teachers);
+        teachers,
+        changeJobOncePercentage,
+        supplyTeacherPercentage,
+        newStarterPercentage,
+        leaverPercentage,
+        partTimePercentage);
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
 
@@ -234,4 +230,218 @@ static User MapTeacherToIdentityUser(Teacher teacher)
     };
 
     return identityUser; 
+}
+
+static Command CreateImportTpsCsvCommand()
+{
+    var filenameOption = new Option<string>(
+        name: "--filename",
+        description: "Filename of TPS extract CSV to import.",
+        getDefaultValue: () => "tps-extract.csv");
+    filenameOption.AddAlias("-f");
+
+    var insertTpsCsvCommand = new Command("importtpscsv", "Process TPS extract CSV file and insert data into the database.")
+    {
+        filenameOption
+    };
+
+    insertTpsCsvCommand.SetHandler(
+        ImportTpsCsv,
+        filenameOption);
+
+    return insertTpsCsvCommand;
+}
+
+static async Task ImportTpsCsv(string filename)
+{
+    var configBuilder = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddDbContext<WorkforceDbContext>();
+    services.AddSingleton<ITpsCsvProcessor, TpsCsvProcessor>();
+    var sp = services.BuildServiceProvider();
+
+    var tpsCsvProcessor = sp.GetRequiredService<ITpsCsvProcessor>();
+    await tpsCsvProcessor.Process(filename);
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("Imported CSV");
+}
+
+static Command CreateAzureBlobCommand()
+{
+    var listPendingFilesCommand = CreateListPendingFilesCommand();
+    var downloadPendingFilesCommand = CreateDownloadPendingFilesCommand();
+    var archivePendingFilesCommand = CreateArchivePendingFilesCommand();
+
+    var azureBlobCommand = new Command("azblob", "Commands related to interacting with Azure blob storage.")
+    {
+        listPendingFilesCommand,
+        downloadPendingFilesCommand,
+        archivePendingFilesCommand
+    };    
+
+    return azureBlobCommand;
+}
+
+static Command CreateListPendingFilesCommand()
+{
+    var listPendingFilesCommand = new Command("listpending", "Lists the TPS extract files pending processing.")
+    {
+    };
+
+    listPendingFilesCommand.SetHandler(ListPendingFiles);
+
+    return listPendingFilesCommand;
+}
+
+static async Task ListPendingFiles()
+{
+    var configBuilder = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    var sp = services.BuildServiceProvider();
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    var storageService = sp.GetRequiredService<ICloudStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    if (filenames == null || filenames.Length == 0)
+    {
+        logger.LogInformation("No pending TPS extract files found.");
+    }
+    else
+    {
+        logger.LogInformation("Found the following pending TPS extract files.");
+        foreach (var filename in filenames)
+        {
+            logger.LogInformation("{filename}", filename);
+        }
+    }
+}
+
+static Command CreateDownloadPendingFilesCommand()
+{
+    var downloadPendingFilesCommand = new Command("downloadpending", "Downloads all TPS extract files pending processing.")
+    {
+    };
+
+    downloadPendingFilesCommand.SetHandler(DownloadPending);
+
+    return downloadPendingFilesCommand;
+}
+
+static async Task DownloadPending()
+{
+    var configBuilder = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    var sp = services.BuildServiceProvider();
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    var storageService = sp.GetRequiredService<ICloudStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    if (filenames == null || filenames.Length == 0)
+    {
+        logger.LogInformation("No pending TPS extract files found.");
+    }
+    else
+    {        
+        foreach (var filename in filenames)
+        {
+            logger.LogInformation("Downloading {filename}", filename);
+            await storageService.DownloadTpsExtractFile(filename);
+            logger.LogInformation("Done.");
+        }
+    }
+}
+
+static Command CreateArchivePendingFilesCommand()
+{
+    var archivePendingFilesCommand = new Command("archivepending", "Archives all TPS extract files pending processing.")
+    {
+    };
+
+    archivePendingFilesCommand.SetHandler(ArchivePending);
+
+    return archivePendingFilesCommand;
+}
+
+static async Task ArchivePending()
+{
+    var configBuilder = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    var sp = services.BuildServiceProvider();
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    var storageService = sp.GetRequiredService<ICloudStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    if (filenames == null || filenames.Length == 0)
+    {
+        logger.LogInformation("No pending TPS extract files found.");
+    }
+    else
+    {
+        foreach (var filename in filenames)
+        {
+            logger.LogInformation("Archiving {filename}", filename);
+            await storageService.ArchiveTpsExtractFile(filename);
+            logger.LogInformation("Done.");
+        }
+    }
 }

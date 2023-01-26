@@ -23,6 +23,19 @@
     "WorkforceDataApi.DevUtils generatemockdata --teachers 1000": {
       "commandName": "Project",
       "commandLineArgs": "generatemockdata --teachers 1000"
+    },
+    "WorkforceDataApi.DevUtils azblob listpending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob listpending"
+    },
+    "WorkforceDataApi.DevUtils azblob downloadpending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob downloadpending"
+    },
+
+    "WorkforceDataApi.DevUtils azblob archivepending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob archivepending"
     }
   }
 }

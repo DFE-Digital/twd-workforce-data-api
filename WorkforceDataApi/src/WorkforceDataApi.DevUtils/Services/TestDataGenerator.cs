@@ -1,6 +1,7 @@
 using Bogus;
 using Bogus.Extensions.UnitedKingdom;
 using Microsoft.Extensions.Logging;
+using TeacherIdentity.AuthServer.Models;
 using WorkforceDataApi.DevUtils.Models;
 using WorkforceDataApi.Models;
 using static Bogus.DataSets.Name;
@@ -12,12 +13,6 @@ public class TestDataGenerator
     private readonly Randomizer commonRandomizer = new Randomizer();
     private readonly IEstablishmentGenerationService _establishmentGenerationService;
     private readonly ILogger<TestDataGenerator> _logger;
-    private int teachersGenerated = 0;
-    private int leaversGenerated = 0;
-    private int newStartersGenerated = 0;
-    private int supplyTeachersGenerated = 0;
-    private int changeJobTeachersGenerated = 0;
-    private int noChangeTeachersGenerated = 0;
 
     public TestDataGenerator(
         IEstablishmentGenerationService establishmentGenerationService,
@@ -31,13 +26,12 @@ public class TestDataGenerator
     /// Generate Test Data with as realistic distribution of data representing teacher workforce data over a 12 month period.
     /// </summary>
     /// <remarks>
-    /// The test data will be generated based on the following distribution:
+    /// The test data will be generated based on the following default distribution:
     /// 12 months total span
     /// 700,000 teachers
-    /// 9% change jobs during the 12 months
+    /// 9% change jobs once during the 12 months
     /// 1% are supply teachers working in up to 3 schools per month - 50% work in 2 schools over 12 months and 50% work in 4 different schools over 12 months
-    /// 8% are regular part-time teachers
-    /// 2% are irregular part-time teachers
+    /// 10% are part-time teachers (80% regular / 20% irregular)
     /// 10% of teachers start teaching in a given year
     /// 8% of teachers leave teaching in a given year
     /// </remarks>
@@ -47,8 +41,25 @@ public class TestDataGenerator
     public IEnumerable<WorkforceData> GenerateTestData(
         DateOnly startDate,
         int months = 12,
-        int teacherCount = 700_000)
+        int teacherCount = 700_000,
+        int changeJobOncePercentage = 9,
+        int supplyTeacherPercentage = 1,
+        int newStarterPercentage = 10,
+        int leaverPercentage = 8,
+        int partTimePercentage = 10)
     {
+        int partTimeRegularPercentage = (int)Math.Round(partTimePercentage * 0.8);
+        int partTimeIrregularPercentage = (int)Math.Round(partTimePercentage * 0.2);
+
+        int teachersGenerated = 0;
+        int leaversGenerated = 0;
+        int newStartersGenerated = 0;
+        int supplyTeachersGenerated = 0;
+        int changeJobTeachersGenerated = 0;
+        int noChangeTeachersGenerated = 0;
+        int partTimeRegularGenerated = 0;
+        int partTimeIrregularGenerated = 0;
+
         List<DateRange> dateRanges = new List<DateRange>();
         var startDateRange = new DateOnly(startDate.Year, startDate.Month, 1);
         var startOfMonth = startDateRange;
@@ -78,6 +89,29 @@ public class TestDataGenerator
 
             var trn = enumerator.Current;
             return trn.ToString();
+        },
+        () =>
+        {
+            // Default Distribution we'll use is:
+            // 90% FullTimeEmployment
+            // 8% PartTimeRegular
+            // 2% IrregularPartTime
+            var weight = commonRandomizer.Number(1, 100);
+            FullOrPartTimeIndicatorType indicator;
+            if (weight <= partTimeIrregularPercentage)
+            {
+                indicator = FullOrPartTimeIndicatorType.IrregularPartTime;
+            }
+            else if (weight <= (partTimeIrregularPercentage + partTimeRegularPercentage))
+            {
+                indicator = FullOrPartTimeIndicatorType.PartTimeRegular;
+            }
+            else
+            {
+                indicator = FullOrPartTimeIndicatorType.FullTimeEmployment;
+            }
+
+            return indicator;
         });
 
         var workforceDataFaker = new Faker<WorkforceData>("en_GB")
@@ -85,24 +119,33 @@ public class TestDataGenerator
             {
                 var teacher = teacherFaker.Generate();
                 teachersGenerated++;
+                if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.PartTimeRegular)
+                {
+                    partTimeRegularGenerated++;
+                }
+                else if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.IrregularPartTime)
+                {
+                    partTimeIrregularGenerated++;
+                }
+
                 DateOnly? newStarterStartDate = null;
                 DateOnly? leaverEndDate = null;
 
                 // Now generate their employment history based on expected distributions of data.
                 var tpsExtractDataItems = new List<TpsExtractDataItem>();
                 
-                // Data distribution weight for existing, new or leaving teacher is
+                // Default Data distribution weight for existing, new or leaving teacher is
                 // existing: 80%
                 // new: 10%
                 // leaver: 8% 
                 var weight = commonRandomizer.Number(1, 100);
-                if (weight < 9)
+                if (weight <= leaverPercentage)
                 {
                     // Leaver
                     leaverEndDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
                     leaversGenerated++;
                 }
-                else if (weight > 8 && weight < 19)
+                else if (weight > leaverPercentage && weight <= (leaverPercentage + newStarterPercentage))
                 {
                     // New
                     newStarterStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
@@ -113,13 +156,13 @@ public class TestDataGenerator
                     // Existing
                 }
 
-                // Data distribution weight for stay at same school, change schools, supply teacher is
+                // Default Data distribution weight for stay at same school, change schools, supply teacher is
                 // same: 90%
                 // change: 9%
                 // supply: 1%
                 // this is skewed slightly with the assumption that new starters would not tend to change schools within 12 months 
                 weight = commonRandomizer.Number(1, 100);
-                if (weight < 2)
+                if (weight <= supplyTeacherPercentage)
                 {
                     var numberOfDifferentSchools = f.PickRandom(2, 4);
                     var schools = new List<Establishment>();
@@ -261,7 +304,7 @@ public class TestDataGenerator
 
                     supplyTeachersGenerated++;
                 }
-                else if ((weight > 1 && weight < 11) && !newStarterStartDate.HasValue)
+                else if ((weight > supplyTeacherPercentage && weight <= (supplyTeacherPercentage + changeJobOncePercentage)) && !newStarterStartDate.HasValue)
                 {
                     // Changed schools once during year (unlikely for new starters I would have thought??)
                     var changeSchoolStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
@@ -421,20 +464,24 @@ public class TestDataGenerator
         }
 
         var leaversActualPercentage = Math.Round((double) (leaversGenerated * 100) / teachersGenerated, 2);
-        var newStartersActualPercentage = Math.Round((double)(newStartersGenerated * 100) / teachersGenerated);
-        var supplyTeachersPercentage = Math.Round((double)(supplyTeachersGenerated * 100) / teachersGenerated);
-        var changeJobTeachersPercentage = Math.Round((double)(changeJobTeachersGenerated * 100) / teachersGenerated);
-        var noChangeTeachersPercentage = Math.Round((double)(noChangeTeachersGenerated * 100) / teachersGenerated);        
+        var newStartersActualPercentage = Math.Round((double)(newStartersGenerated * 100) / teachersGenerated, 2);
+        var supplyTeachersActualPercentage = Math.Round((double)(supplyTeachersGenerated * 100) / teachersGenerated, 2);
+        var changeJobTeachersActualPercentage = Math.Round((double)(changeJobTeachersGenerated * 100) / teachersGenerated, 2);
+        var noChangeTeachersActualPercentage = Math.Round((double)(noChangeTeachersGenerated * 100) / teachersGenerated, 2);
+        var partTimeRegularActualPercentage = Math.Round((double)(partTimeRegularGenerated * 100) / teachersGenerated, 2);
+        var partTimeIrregularActualPercentage = Math.Round((double)(partTimeIrregularGenerated * 100) / teachersGenerated, 2);
 
-        _logger.LogInformation("Total teachers generated              = {teachersGenerated}", teachersGenerated);
-        _logger.LogInformation("Total leavers generated               = {leaversGenerated} ({leaversActualPercentage}%)", leaversGenerated, leaversActualPercentage);
-        _logger.LogInformation("Total new starters generated          = {newStartersGenerated} ({newStartersActualPercentage}%)", newStartersGenerated, newStartersActualPercentage);
-        _logger.LogInformation("Total supply teachers generated       = {supplyTeachersGenerated} ({supplyTeachersPercentage}%)", supplyTeachersGenerated, supplyTeachersPercentage);
-        _logger.LogInformation("Total teachers changing schools once  = {changeJobTeachersGenerated} ({changeJobTeachersPercentage}%)", changeJobTeachersGenerated, changeJobTeachersPercentage);
-        _logger.LogInformation("Total teachers staying at same school = {noChangeTeachersGenerated} ({noChangeTeachersPercentage}%)", noChangeTeachersGenerated, noChangeTeachersPercentage);
+        _logger.LogInformation("Total teachers generated                     = {teachersGenerated}", teachersGenerated);
+        _logger.LogInformation("Total part-time regular teachers generated   = {leaversGenerated} ({partTimeRegularActualPercentage}%)", partTimeRegularGenerated, partTimeRegularActualPercentage);
+        _logger.LogInformation("Total part-time irregular teachers generated = {leaversGenerated} ({partTimeIrregularActualPercentage}%)", partTimeIrregularGenerated, partTimeIrregularActualPercentage);
+        _logger.LogInformation("Total new starters generated                 = {newStartersGenerated} ({newStartersActualPercentage}%)", newStartersGenerated, newStartersActualPercentage);
+        _logger.LogInformation("Total leavers generated                      = {leaversGenerated} ({leaversActualPercentage}%)", leaversGenerated, leaversActualPercentage);
+        _logger.LogInformation("Total supply teachers generated              = {supplyTeachersGenerated} ({supplyTeachersActualPercentage}%)", supplyTeachersGenerated, supplyTeachersActualPercentage);
+        _logger.LogInformation("Total teachers changing schools once         = {changeJobTeachersGenerated} ({changeJobTeachersActualPercentage}%)", changeJobTeachersGenerated, changeJobTeachersActualPercentage);
+        _logger.LogInformation("Total teachers staying at same school        = {noChangeTeachersGenerated} ({noChangeTeachersActualPercentage}%)", noChangeTeachersGenerated, noChangeTeachersActualPercentage);
     }
 
-    private Faker<Teacher> GetTeacherFaker(Func<string> trnGenerator)
+    private Faker<Teacher> GetTeacherFaker(Func<string> trnGenerator, Func<FullOrPartTimeIndicatorType> fullOrPartTimeGenerator)
     {
         var teacherFaker = new Faker<Teacher>("en_GB")
            .RuleFor(i => i.MemberId, (f, i) => Guid.NewGuid().ToString())
@@ -446,7 +493,7 @@ public class TestDataGenerator
            .RuleFor(i => i.DateOfBirth, (f, i) => f.Date.BetweenDateOnly(new DateOnly(1950, 1, 1), new DateOnly(2000, 1, 1)))
            .RuleFor(i => i.EmailAddress, (f, i) => f.Internet.Email(i.FirstName, i.LastName, uniqueSuffix: commonRandomizer.Number(1, 1000000).ToString()))
            .RuleFor(i => i.MemberPostcode, (f, i) => f.Address.ZipCode())
-           .RuleFor(i => i.FullOrPartTimeIndicator, (f, i) => commonRandomizer.FullOrPartTimeIndicator());
+           .RuleFor(i => i.FullOrPartTimeIndicator, (f, i) => fullOrPartTimeGenerator());
 
         return teacherFaker;
     }
