@@ -21,15 +21,17 @@ return await rootCommand.InvokeAsync(args);
 static RootCommand CreateRootCommand()
 {
     var migrateDatabaseCommand = CreateMigrateDatabaseCommand();
-    var generateMockDataCommand = CreateGenerateMockDataCommand();
+    var generateMockDataCommand = CreateGenerateMockDataCommand();    
     var importTpsCsvCommand = CreateImportTpsCsvCommand();
+    var importEstablishmentsCsvCommand = CreateImportEstablishmentsCsv();
     var azureBlobCommand = CreateAzureBlobCommand();
 
     var rootCommand = new RootCommand("Workforce Data command line developer utilities.")
     {
         migrateDatabaseCommand,
-        generateMockDataCommand,
+        generateMockDataCommand,        
         importTpsCsvCommand,
+        importEstablishmentsCsvCommand,
         azureBlobCommand
     };
 
@@ -278,7 +280,78 @@ static async Task ImportTpsCsv(string filename)
     await tpsCsvProcessor.Process(filename);
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("Imported CSV");
+    logger.LogInformation("Imported TPS Extract CSV");
+}
+
+static Command CreateImportEstablishmentsCsv()
+{
+    var filenameOption = new Option<string>(
+        name: "--filename",
+        description: "Filename of Establishments CSV to import.",
+        getDefaultValue: () => "edubasealldata20230119.csv");
+    filenameOption.AddAlias("-f");
+
+    var downloadLatestOption = new Option<bool>(
+        name: "--download-latest",
+        description: "Specifies whether to download the latest Establishments CSV file to use in the import.",
+        getDefaultValue: () => true);
+
+    var importEstablishmentsCsvCommand = new Command("importestablishmentscsv", "Process Establishments CSV file and insert data into the database.")
+    {
+        filenameOption,
+        downloadLatestOption
+    };
+
+    importEstablishmentsCsvCommand.SetHandler(
+        ImportEstablishmentsCsv,
+        filenameOption,
+        downloadLatestOption);
+
+    return importEstablishmentsCsvCommand;
+}
+
+static async Task ImportEstablishmentsCsv(
+    string filename,
+    bool downloadLatest)
+{
+    var configBuilder = new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddDbContext<WorkforceDbContext>();
+    services.AddSingleton<IEstablishmentsCsvProcessor, EstablishmentsCsvProcessor>();
+    if (downloadLatest)
+    {
+        services.AddHttpClient();
+        services.AddSingleton<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
+    }
+    
+    var sp = services.BuildServiceProvider();
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+
+    if (downloadLatest)
+    {
+        logger.LogInformation("Downloading latest Establishments CSV");
+        var establishmentsCsvDownloader = sp.GetRequiredService<IEstablishmentsCsvDownloader>();
+        filename = await establishmentsCsvDownloader.DownloadLatest();
+        logger.LogInformation("Downloaded {filename}", filename);
+    }
+
+    var establishmentsCsvProcessor = sp.GetRequiredService<IEstablishmentsCsvProcessor>();
+    await establishmentsCsvProcessor.Process(filename);
+    logger.LogInformation("Imported Establishments CSV");
 }
 
 static Command CreateAzureBlobCommand()

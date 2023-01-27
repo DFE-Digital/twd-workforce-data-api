@@ -4,5 +4,5 @@ namespace WorkforceDataApi.DevUtils.Services;
 
 public interface IEstablishmentGenerationService
 {
-    Establishment Generate();
+    EstablishmentSummary Generate();
 }

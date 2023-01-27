@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WorkforceDataApi.Models;
@@ -11,9 +12,11 @@ using WorkforceDataApi.Models;
 namespace WorkforceDataApi.Migrations
 {
     [DbContext(typeof(WorkforceDbContext))]
-    partial class WorkforceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230127151131_AddEstablishmentRawTable")]
+    partial class AddEstablishmentRawTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

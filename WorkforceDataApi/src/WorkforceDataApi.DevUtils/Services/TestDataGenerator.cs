@@ -165,7 +165,7 @@ public class TestDataGenerator
                 if (weight <= supplyTeacherPercentage)
                 {
                     var numberOfDifferentSchools = f.PickRandom(2, 4);
-                    var schools = new List<Establishment>();
+                    var schools = new List<EstablishmentSummary>();
                     for (int i = 0; i < numberOfDifferentSchools; i++)
                     {
                         schools.Add(_establishmentGenerationService.Generate());

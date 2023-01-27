@@ -8,10 +8,6 @@
       "commandName": "Project",
       "commandLineArgs": "migratedb"
     },
-    "WorkforceDataApi.DevUtils importtpscsv": {
-      "commandName": "Project",
-      "commandLineArgs": "importtpscsv"
-    },
     "WorkforceDataApi.DevUtils generatemockdata": {
       "commandName": "Project",
       "commandLineArgs": "generatemockdata"
@@ -23,6 +19,14 @@
     "WorkforceDataApi.DevUtils generatemockdata --teachers 1000": {
       "commandName": "Project",
       "commandLineArgs": "generatemockdata --teachers 1000"
+    },
+    "WorkforceDataApi.DevUtils importtpscsv": {
+      "commandName": "Project",
+      "commandLineArgs": "importtpscsv"
+    },
+    "WorkforceDataApi.DevUtils importestablishmentscsv": {
+      "commandName": "Project",
+      "commandLineArgs": "importestablishmentscsv"
     },
     "WorkforceDataApi.DevUtils azblob listpending": {
       "commandName": "Project",

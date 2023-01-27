@@ -3,9 +3,9 @@ using WorkforceDataApi.DevUtils.Models;
 
 namespace WorkforceDataApi.DevUtils.Csv;
 
-public class EstablishmentReaderMap : ClassMap<Establishment>
+public class EstablishmentSummaryReaderMap : ClassMap<EstablishmentSummary>
 {
-    public EstablishmentReaderMap()
+    public EstablishmentSummaryReaderMap()
     {
         Map(i => i.LocalAuthorityNumber).Index(1);
         Map(i => i.EstablishmentNumber).Index(3);

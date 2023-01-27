@@ -14,6 +14,8 @@ public class WorkforceDbContext : DbContext
 
     public DbSet<TpsExtractDataItem> TpsExtractDataItems => Set<TpsExtractDataItem>();
 
+    public DbSet<EstablishmentRaw> Establishments => Set<EstablishmentRaw>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder
