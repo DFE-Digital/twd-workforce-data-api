@@ -70,12 +70,7 @@ static async Task MigrateDatabase()
 }
 
 static Command CreateGenerateMockDataCommand()
-{   
-    var directoryOption = new Option<string>(
-        name: "--directory",
-        description: "Directory where files will be written.");
-    directoryOption.AddAlias("-d");
-
+{
     var monthsOption = new Option<int>(
         name: "--months",
         description: "The number of months worth of data to generate.",
@@ -113,7 +108,6 @@ static Command CreateGenerateMockDataCommand()
 
     var generateMockDataCommand = new Command("generatemockdata", "Generate test data in the format expected from the TPS extract.")
     {
-        directoryOption,
         monthsOption,
         teachersOption,
         percentChangeSchoolsOnceOption,
@@ -125,7 +119,6 @@ static Command CreateGenerateMockDataCommand()
 
     generateMockDataCommand.SetHandler(
         GenerateMockData,
-        directoryOption,
         monthsOption,
         teachersOption,
         percentChangeSchoolsOnceOption,
@@ -137,8 +130,7 @@ static Command CreateGenerateMockDataCommand()
     return generateMockDataCommand;
 }
 
-static void GenerateMockData(
-    string directory,
+static async Task GenerateMockData(
     int months,
     int teachers,
     int changeJobOncePercentage,
@@ -161,10 +153,25 @@ static void GenerateMockData(
         .CreateLogger();
 
     var services = new ServiceCollection();
+    services.AddHttpClient();
+    services.AddSingleton<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
     services.AddSingleton<IEstablishmentGenerationService, EstablishmentGenerationService>();
     services.AddLogging(builder => builder.AddSerilog(serilog));
     services.AddSingleton<TestDataGenerator>();
     var sp = services.BuildServiceProvider();
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    var establishmentsCsvDownloader = sp.GetRequiredService<IEstablishmentsCsvDownloader>();
+    var latestEstablishmentsCsvFilename = establishmentsCsvDownloader.GetLatestEstablishmentsCsvFilename();
+    if (!File.Exists(latestEstablishmentsCsvFilename))
+    {
+        logger.LogInformation("Downloading latest Establishments CSV");
+        await establishmentsCsvDownloader.DownloadLatest();
+        logger.LogInformation("Downloaded {filename}", latestEstablishmentsCsvFilename);
+    }
+
+    var establishmentGenerationService = sp.GetRequiredService<IEstablishmentGenerationService>();
+    establishmentGenerationService.Initialise(latestEstablishmentsCsvFilename);
 
     var testDataGenerator = sp.GetRequiredService<TestDataGenerator>();
     var testData = testDataGenerator.GenerateTestData(
@@ -175,9 +182,7 @@ static void GenerateMockData(
         supplyTeacherPercentage,
         newStarterPercentage,
         leaverPercentage,
-        partTimePercentage);
-
-    var logger = sp.GetRequiredService<ILogger<Program>>();
+        partTimePercentage);    
 
     string dateTimeSuffix = DateTime.Now.ToString("ddMMyyyyHHmmss");
     string identityUsersCsvFilename = $"mock-teacher-identity-users-{dateTimeSuffix}.csv";
@@ -196,6 +201,8 @@ static void GenerateMockData(
     tpsExtractCsv.Context.RegisterClassMap<TpsExtractDataItemWriterMap>();
     int teacherCount = 0;
     int workforceDataItemsCount = 0;
+    logger.LogInformation("Generating mock TPS extract data to {tpsCsv}.", tpsExtractCsvFilename);
+    logger.LogInformation("Generating mock teacher identity users to {usersCsv}.", identityUsersCsvFilename);
     foreach (var workforceData in testData)
     {
         var identityUser = MapTeacherToIdentityUser(workforceData.Teacher);
@@ -275,13 +282,15 @@ static async Task ImportTpsCsv(string filename)
     services.AddLogging(builder => builder.AddSerilog(serilog));
     services.AddDbContext<WorkforceDbContext>();
     services.AddSingleton<ITpsCsvProcessor, TpsCsvProcessor>();
+
     var sp = services.BuildServiceProvider();
 
-    var tpsCsvProcessor = sp.GetRequiredService<ITpsCsvProcessor>();
-    await tpsCsvProcessor.Process(filename);
-
     var logger = sp.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("Imported TPS Extract CSV");
+    var tpsCsvProcessor = sp.GetRequiredService<ITpsCsvProcessor>();
+
+    logger.LogInformation("Importing TPS Extract from {filename}", filename);
+    await tpsCsvProcessor.Process(filename);    
+    logger.LogInformation("Imported {filename}", filename);
 }
 
 static Command CreateExecJobCommand()

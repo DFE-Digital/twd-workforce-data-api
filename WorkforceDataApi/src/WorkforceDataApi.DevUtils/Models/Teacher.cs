@@ -12,6 +12,6 @@ public class Teacher
     public required DateOnly DateOfBirth { get; init; }
     public required string EmailAddress { get; init; }
     public required string MemberPostcode { get; init; }
-    public required FullOrPartTimeIndicatorType FullOrPartTimeIndicator { get; init; }
+    public FullOrPartTimeIndicatorType? FullOrPartTimeIndicator { get; init; }
     public required string TeachingStatus { get; init; }
 }

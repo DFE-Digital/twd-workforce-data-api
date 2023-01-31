@@ -18,7 +18,7 @@ public class EstablishmentsCsvDownloader : IEstablishmentsCsvDownloader
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.BaseAddress = new Uri(BaseDownloadUri);
 
-        var filename = $"edubasealldata{DateTime.Today.ToString("yyyyMMdd")}.csv";
+        var filename = GetLatestEstablishmentsCsvFilename();
         using var response = await httpClient.GetAsync(filename);
         response.EnsureSuccessStatusCode();
 
@@ -27,5 +27,11 @@ public class EstablishmentsCsvDownloader : IEstablishmentsCsvDownloader
         await stream.CopyToAsync(fs);
 
         return filename;
+    }
+
+    public string GetLatestEstablishmentsCsvFilename()
+    {
+        var filename = $"edubasealldata{DateTime.Today.ToString("yyyyMMdd")}.csv";
+        return filename ;
     }
 }

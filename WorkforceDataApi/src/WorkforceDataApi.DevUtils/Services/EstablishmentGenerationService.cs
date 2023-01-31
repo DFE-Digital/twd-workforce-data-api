@@ -9,11 +9,11 @@ namespace WorkforceDataApi.DevUtils.Services;
 public class EstablishmentGenerationService : IEstablishmentGenerationService
 {
     private readonly Randomizer establishmentRandomizer = new Randomizer();
-    private EstablishmentSummary[] _establishments;
+    private EstablishmentSummary[] _establishments = new EstablishmentSummary[] {};    
 
-    public EstablishmentGenerationService()
+    public void Initialise(string sourceFilename)
     {
-        using var reader = new StreamReader("edubasealldata20230119.csv");
+        using var reader = new StreamReader(sourceFilename);
         using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
         csv.Context.RegisterClassMap<EstablishmentSummaryReaderMap>();
         _establishments = csv.GetRecords<EstablishmentSummary>()

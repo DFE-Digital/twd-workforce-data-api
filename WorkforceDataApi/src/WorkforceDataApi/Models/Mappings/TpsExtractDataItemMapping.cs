@@ -20,11 +20,11 @@ public class TpsExtractDataItemMapping : IEntityTypeConfiguration<TpsExtractData
         builder.Property(u => u.DateOfBirth).IsRequired();
         builder.Property(u => u.EmailAddress).HasMaxLength(TpsExtractDataItem.EmailAddressMaxLength).IsRequired().UseCollation("case_insensitive");
         builder.Property(u => u.MemberPostcode).HasMaxLength(TpsExtractDataItem.PostcodeMaxLength).IsRequired();
-        builder.Property(u => u.LocalAuthorityNumber).HasMaxLength(TpsExtractDataItem.LocalAuthorityNumberFixedLength).IsFixedLength().IsRequired();
-        builder.Property(u => u.EstablishmentNumber).HasMaxLength(TpsExtractDataItem.EstablishmentNumberFixedLength).IsFixedLength().IsRequired();
-        builder.Property(u => u.EstablishmentPostcode).HasMaxLength(TpsExtractDataItem.PostcodeMaxLength).IsRequired();
-        builder.Property(u => u.EmploymentPeriodStartDate).IsRequired();
-        builder.Property(u => u.EmploymentPeriodEndDate).IsRequired();
+        builder.Property(u => u.LocalAuthorityNumber).HasMaxLength(TpsExtractDataItem.LocalAuthorityNumberFixedLength).IsFixedLength();
+        builder.Property(u => u.EstablishmentNumber).HasMaxLength(TpsExtractDataItem.EstablishmentNumberFixedLength).IsFixedLength();
+        builder.Property(u => u.EstablishmentPostcode).HasMaxLength(TpsExtractDataItem.PostcodeMaxLength);
+        builder.Property(u => u.EmploymentPeriodStartDate);
+        builder.Property(u => u.EmploymentPeriodEndDate);
         builder.Property(u => u.Created).IsRequired();
         builder.Property(u => u.Updated).IsRequired();
     }

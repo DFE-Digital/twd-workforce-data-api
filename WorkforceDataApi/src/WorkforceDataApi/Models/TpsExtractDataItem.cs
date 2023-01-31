@@ -27,12 +27,12 @@ public class TpsExtractDataItem
     public required DateOnly DateOfBirth { get; init; }
     public required string EmailAddress { get; init; }
     public required string MemberPostcode { get; init; }
-    public required FullOrPartTimeIndicatorType FullOrPartTimeIndicator { get; init; }
-    public required string LocalAuthorityNumber { get; init; }
-    public required string EstablishmentNumber { get; init; }
-    public required string EstablishmentPostcode { get; init; }
-    public required DateOnly EmploymentPeriodStartDate { get; init; }
-    public required DateOnly EmploymentPeriodEndDate { get; init; }
+    public FullOrPartTimeIndicatorType? FullOrPartTimeIndicator { get; init; }
+    public string? LocalAuthorityNumber { get; init; }
+    public string? EstablishmentNumber { get; init; }
+    public string? EstablishmentPostcode { get; init; }
+    public DateOnly? EmploymentPeriodStartDate { get; init; }
+    public DateOnly? EmploymentPeriodEndDate { get; init; }
     public required DateTime Created { get; init; }
     public required DateTime Updated { get; init; }
 }

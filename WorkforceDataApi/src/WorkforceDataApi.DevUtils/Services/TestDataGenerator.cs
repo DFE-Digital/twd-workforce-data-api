@@ -112,114 +112,334 @@ public class TestDataGenerator
             }
 
             return indicator;
+        },
+        () =>
+        {
+            // Distribution we'll use is:
+            // 96% A - Active
+            // 2%  P - Pensioner
+            // 1%  E - Re-employed
+            // 1%  Q - Qualified (but never taught) 
+            var weight = commonRandomizer.Number(1, 100);
+            if (weight <= 1)
+            {
+                return "Q";
+            }
+            else if (weight <= 2)
+            {
+                return "E";
+            }
+            else if (weight <= 4)
+            {
+                return "P";
+            }
+
+            return "A";
         });
 
         var workforceDataFaker = new Faker<WorkforceData>("en_GB")
             .CustomInstantiator((f) =>
             {
+                var tpsExtractDataItems = new List<TpsExtractDataItem>();
                 var teacher = teacherFaker.Generate();
                 teachersGenerated++;
-                if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.PartTimeRegular)
-                {
-                    partTimeRegularGenerated++;
-                }
-                else if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.IrregularPartTime)
-                {
-                    partTimeIrregularGenerated++;
-                }
+                var created = f.Date.Recent();
 
-                DateOnly? newStarterStartDate = null;
-                DateOnly? leaverEndDate = null;
+                // Our current thinking is that there would be any employment details for
+                // Q (Qualified but not teaching) or P (Retired) teaching status
+                if (teacher.TeachingStatus == "Q" || teacher.TeachingStatus == "P")
+                {
+                    var dataItem = new TpsExtractDataItem
+                    {
+                        TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                        MemberId = teacher.MemberId,
+                        TeachingStatus = teacher.TeachingStatus,
+                        Trn = teacher.Trn,
+                        FirstName = teacher.FirstName,
+                        LastName = teacher.LastName,
+                        Nino = teacher.Nino,
+                        DateOfBirth = teacher.DateOfBirth,
+                        EmailAddress = teacher.EmailAddress,
+                        MemberPostcode = teacher.MemberPostcode,
+                        Created = created,
+                        Updated = created
+                    };
 
-                // Now generate their employment history based on expected distributions of data.
-                var tpsExtractDataItems = new List<TpsExtractDataItem>();
-                
-                // Default Data distribution weight for existing, new or leaving teacher is
-                // existing: 80%
-                // new: 10%
-                // leaver: 8% 
-                var weight = commonRandomizer.Number(1, 100);
-                if (weight <= leaverPercentage)
-                {
-                    // Leaver
-                    leaverEndDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
-                    leaversGenerated++;
-                }
-                else if (weight > leaverPercentage && weight <= (leaverPercentage + newStarterPercentage))
-                {
-                    // New
-                    newStarterStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
-                    newStartersGenerated++;
+                    tpsExtractDataItems.Add(dataItem);
                 }
                 else
                 {
-                    // Existing
-                }
-
-                // Default Data distribution weight for stay at same school, change schools, supply teacher is
-                // same: 90%
-                // change: 9%
-                // supply: 1%
-                // this is skewed slightly with the assumption that new starters would not tend to change schools within 12 months 
-                weight = commonRandomizer.Number(1, 100);
-                if (weight <= supplyTeacherPercentage)
-                {
-                    var numberOfDifferentSchools = f.PickRandom(2, 4);
-                    var schools = new List<EstablishmentSummary>();
-                    for (int i = 0; i < numberOfDifferentSchools; i++)
+                    if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.PartTimeRegular)
                     {
-                        schools.Add(_establishmentGenerationService.Generate());
+                        partTimeRegularGenerated++;
+                    }
+                    else if (teacher.FullOrPartTimeIndicator == FullOrPartTimeIndicatorType.IrregularPartTime)
+                    {
+                        partTimeIrregularGenerated++;
                     }
 
-                    var availableSchools = schools.ToArray();                                        
-                    var created = f.Date.Recent();                    
+                    DateOnly? newStarterStartDate = null;
+                    DateOnly? leaverEndDate = null;
 
-                    // Supply teacher working at 1 - 3 schools per month i.e. between 0 and 2 school changes in a month
-                    // Let's say that if it's 1 change it can happen any time in the month, if it's 2 then it will happen any time up to 15th + any time from 16th to the end of the month
-                    // If they are a new starter then don't have any changes the first month
-                    // If they are a leaver then don't have any changes in the last month other than the status update
-                    // 50% work at 2 different schools over the 12 months and 50% work at 4 different schools
-                    var changeDates = new List<DateOnly>();
-                    foreach (var dateRange in dateRanges)
+                    // Now generate their employment history based on expected distributions of data.                
+
+                    // Default Data distribution weight for existing, new or leaving teacher is
+                    // existing: 80%
+                    // new: 10%
+                    // leaver: 8% 
+                    var weight = commonRandomizer.Number(1, 100);
+                    if (weight <= leaverPercentage)
                     {
-                        // If new starter then skip this month if not starting in it
-                        if (newStarterStartDate != null && newStarterStartDate > dateRange.EndDate)
-                        {
-                            continue;
-                        }
-
-                        // if leaver then exit if leaving this month
-                        if (leaverEndDate != null && leaverEndDate >= dateRange.StartDate && leaverEndDate <= dateRange.EndDate)
-                        {
-                            break;
-                        }
-
-                        var numberOfSchoolChanges = commonRandomizer.Number(0, 2);
-                        if (numberOfSchoolChanges == 1)
-                        {
-                            // Change any day in the month
-                            var changeDay = commonRandomizer.Number(1, dateRange.EndDate.Day);
-                            changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay));
-
-                        }
-                        else if (numberOfSchoolChanges == 2)
-                        {
-                            // 1st change any day from 1st - 15th of month
-                            var changeDay1 = commonRandomizer.Number(1, dateRange.EndDate.Day);
-                            changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay1));
-                            // 2nd change any day from 16th - end of month
-                            var changeDay2 = commonRandomizer.Number(16, dateRange.EndDate.Day);
-                            changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay2));
-                        }               
+                        // Leaver
+                        leaverEndDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
+                        leaversGenerated++;
+                    }
+                    else if (weight > leaverPercentage && weight <= (leaverPercentage + newStarterPercentage))
+                    {
+                        // New
+                        newStarterStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
+                        newStartersGenerated++;
+                    }
+                    else
+                    {
+                        // Existing
                     }
 
-                    DateOnly employmentPeriodStartDate = newStarterStartDate ?? startDateRange;
-                    int currentSchoolIndex = 0;
-
-                    // Now we have a list of dates when the teacher changes school, build up the data to represent that
-                    foreach (var changeDate in changeDates)
+                    // Default Data distribution weight for stay at same school, change schools, supply teacher is
+                    // same: 90%
+                    // change: 9%
+                    // supply: 1%
+                    // this is skewed slightly with the assumption that new starters would not tend to change schools within 12 months 
+                    weight = commonRandomizer.Number(1, 100);
+                    if (weight <= supplyTeacherPercentage)
                     {
-                        var currentSchool = availableSchools[currentSchoolIndex];
+                        var numberOfDifferentSchools = f.PickRandom(2, 4);
+                        var schools = new List<EstablishmentSummary>();
+                        for (int i = 0; i < numberOfDifferentSchools; i++)
+                        {
+                            schools.Add(_establishmentGenerationService.Generate());
+                        }
+
+                        var availableSchools = schools.ToArray();
+
+                        // Supply teacher working at 1 - 3 schools per month i.e. between 0 and 2 school changes in a month
+                        // Let's say that if it's 1 change it can happen any time in the month, if it's 2 then it will happen any time up to 15th + any time from 16th to the end of the month
+                        // If they are a new starter then don't have any changes the first month
+                        // If they are a leaver then don't have any changes in the last month other than the status update
+                        // 50% work at 2 different schools over the 12 months and 50% work at 4 different schools
+                        var changeDates = new List<DateOnly>();
+                        foreach (var dateRange in dateRanges)
+                        {
+                            // If new starter then skip this month if not starting in it
+                            if (newStarterStartDate != null && newStarterStartDate > dateRange.EndDate)
+                            {
+                                continue;
+                            }
+
+                            // if leaver then exit if leaving this month
+                            if (leaverEndDate != null && leaverEndDate >= dateRange.StartDate && leaverEndDate <= dateRange.EndDate)
+                            {
+                                break;
+                            }
+
+                            var numberOfSchoolChanges = commonRandomizer.Number(0, 2);
+                            if (numberOfSchoolChanges == 1)
+                            {
+                                // Change any day in the month
+                                var changeDay = commonRandomizer.Number(1, dateRange.EndDate.Day);
+                                changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay));
+
+                            }
+                            else if (numberOfSchoolChanges == 2)
+                            {
+                                // 1st change any day from 1st - 15th of month
+                                var changeDay1 = commonRandomizer.Number(1, dateRange.EndDate.Day);
+                                changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay1));
+                                // 2nd change any day from 16th - end of month
+                                var changeDay2 = commonRandomizer.Number(16, dateRange.EndDate.Day);
+                                changeDates.Add(new DateOnly(dateRange.StartDate.Year, dateRange.StartDate.Month, changeDay2));
+                            }
+                        }
+
+                        DateOnly employmentPeriodStartDate = newStarterStartDate ?? startDateRange;
+                        int currentSchoolIndex = 0;
+
+                        // Now we have a list of dates when the teacher changes school, build up the data to represent that
+                        foreach (var changeDate in changeDates)
+                        {
+                            var currentSchool = availableSchools[currentSchoolIndex];
+                            var dataItem = new TpsExtractDataItem
+                            {
+                                TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                                MemberId = teacher.MemberId,
+                                TeachingStatus = teacher.TeachingStatus,
+                                Trn = teacher.Trn,
+                                FirstName = teacher.FirstName,
+                                LastName = teacher.LastName,
+                                Nino = teacher.Nino,
+                                DateOfBirth = teacher.DateOfBirth,
+                                EmailAddress = teacher.EmailAddress,
+                                MemberPostcode = teacher.MemberPostcode,
+                                FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                                LocalAuthorityNumber = currentSchool.LocalAuthorityNumber,
+                                EstablishmentNumber = currentSchool.EstablishmentNumber,
+                                EstablishmentPostcode = currentSchool.EstablishmentPostcode,
+                                EmploymentPeriodStartDate = employmentPeriodStartDate,
+                                EmploymentPeriodEndDate = changeDate.AddDays(-1),
+                                Created = created,
+                                Updated = created
+                            };
+
+                            tpsExtractDataItems.Add(dataItem);
+
+                            currentSchoolIndex = (currentSchoolIndex == numberOfDifferentSchools - 1) ? 0 : currentSchoolIndex + 1;
+                            employmentPeriodStartDate = changeDate;
+                        }
+
+                        // Write out final record to the end the year or leaver date
+                        var lastSchool = availableSchools[currentSchoolIndex];
+                        var lastSchoolDataItem = new TpsExtractDataItem
+                        {
+                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
+                            TeachingStatus = teacher.TeachingStatus,
+                            Trn = teacher.Trn,
+                            FirstName = teacher.FirstName,
+                            LastName = teacher.LastName,
+                            Nino = teacher.Nino,
+                            DateOfBirth = teacher.DateOfBirth,
+                            EmailAddress = teacher.EmailAddress,
+                            MemberPostcode = teacher.MemberPostcode,
+                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                            LocalAuthorityNumber = lastSchool.LocalAuthorityNumber,
+                            EstablishmentNumber = lastSchool.EstablishmentNumber,
+                            EstablishmentPostcode = lastSchool.EstablishmentPostcode,
+                            EmploymentPeriodStartDate = employmentPeriodStartDate,
+                            EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
+                            Created = created,
+                            Updated = created
+                        };
+
+                        tpsExtractDataItems.Add(lastSchoolDataItem);
+
+                        // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
+                        if (leaverEndDate.HasValue)
+                        {
+                            var leaverDataItem = new TpsExtractDataItem
+                            {
+                                TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                                MemberId = teacher.MemberId,
+                                TeachingStatus = "L",
+                                Trn = teacher.Trn,
+                                FirstName = teacher.FirstName,
+                                LastName = teacher.LastName,
+                                Nino = teacher.Nino,
+                                DateOfBirth = teacher.DateOfBirth,
+                                EmailAddress = teacher.EmailAddress,
+                                MemberPostcode = teacher.MemberPostcode,
+                                FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                                LocalAuthorityNumber = lastSchool.LocalAuthorityNumber,
+                                EstablishmentNumber = lastSchool.EstablishmentNumber,
+                                EstablishmentPostcode = lastSchool.EstablishmentPostcode,
+                                EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
+                                EmploymentPeriodEndDate = endDateRange,
+                                Created = created,
+                                Updated = created
+                            };
+
+                            tpsExtractDataItems.Add(leaverDataItem);
+                        }
+
+                        supplyTeachersGenerated++;
+                    }
+                    else if ((weight > supplyTeacherPercentage && weight <= (supplyTeacherPercentage + changeJobOncePercentage)) && !newStarterStartDate.HasValue)
+                    {
+                        // Changed schools once during year (unlikely for new starters I would have thought??)
+                        var changeSchoolStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));                        
+
+                        var firstSchool = _establishmentGenerationService.Generate();
+                        var firstSchoolDataItem = new TpsExtractDataItem
+                        {
+                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
+                            TeachingStatus = teacher.TeachingStatus,
+                            Trn = teacher.Trn,
+                            FirstName = teacher.FirstName,
+                            LastName = teacher.LastName,
+                            Nino = teacher.Nino,
+                            DateOfBirth = teacher.DateOfBirth,
+                            EmailAddress = teacher.EmailAddress,
+                            MemberPostcode = teacher.MemberPostcode,
+                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                            LocalAuthorityNumber = firstSchool.LocalAuthorityNumber,
+                            EstablishmentNumber = firstSchool.EstablishmentNumber,
+                            EstablishmentPostcode = firstSchool.EstablishmentPostcode,
+                            EmploymentPeriodStartDate = startDateRange,
+                            EmploymentPeriodEndDate = changeSchoolStartDate.AddDays(-1),
+                            Created = created,
+                            Updated = created
+                        };
+
+                        var secondSchool = _establishmentGenerationService.Generate();
+                        var secondSchoolDataItem = new TpsExtractDataItem
+                        {
+                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                            MemberId = teacher.MemberId,
+                            TeachingStatus = teacher.TeachingStatus,
+                            Trn = teacher.Trn,
+                            FirstName = teacher.FirstName,
+                            LastName = teacher.LastName,
+                            Nino = teacher.Nino,
+                            DateOfBirth = teacher.DateOfBirth,
+                            EmailAddress = teacher.EmailAddress,
+                            MemberPostcode = teacher.MemberPostcode,
+                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                            LocalAuthorityNumber = secondSchool.LocalAuthorityNumber,
+                            EstablishmentNumber = secondSchool.EstablishmentNumber,
+                            EstablishmentPostcode = secondSchool.EstablishmentPostcode,
+                            EmploymentPeriodStartDate = changeSchoolStartDate,
+                            EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
+                            Created = created,
+                            Updated = created
+                        };
+
+                        tpsExtractDataItems.Add(firstSchoolDataItem);
+                        tpsExtractDataItems.Add(secondSchoolDataItem);
+
+                        // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
+                        if (leaverEndDate.HasValue)
+                        {
+                            var leaverDataItem = new TpsExtractDataItem
+                            {
+                                TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                                MemberId = teacher.MemberId,
+                                TeachingStatus = "L",
+                                Trn = teacher.Trn,
+                                FirstName = teacher.FirstName,
+                                LastName = teacher.LastName,
+                                Nino = teacher.Nino,
+                                DateOfBirth = teacher.DateOfBirth,
+                                EmailAddress = teacher.EmailAddress,
+                                MemberPostcode = teacher.MemberPostcode,
+                                FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                                LocalAuthorityNumber = secondSchool.LocalAuthorityNumber,
+                                EstablishmentNumber = secondSchool.EstablishmentNumber,
+                                EstablishmentPostcode = secondSchool.EstablishmentPostcode,
+                                EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
+                                EmploymentPeriodEndDate = endDateRange,
+                                Created = created,
+                                Updated = created
+                            };
+
+                            tpsExtractDataItems.Add(leaverDataItem);
+                        }
+
+                        changeJobTeachersGenerated++;
+                    }
+                    else
+                    {
+                        // Same school all year
+                        var school = _establishmentGenerationService.Generate();
                         var dataItem = new TpsExtractDataItem
                         {
                             TpsExtractDataItemId = Guid.NewGuid().ToString(),
@@ -233,222 +453,49 @@ public class TestDataGenerator
                             EmailAddress = teacher.EmailAddress,
                             MemberPostcode = teacher.MemberPostcode,
                             FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                            LocalAuthorityNumber = currentSchool.LocalAuthorityNumber,
-                            EstablishmentNumber = currentSchool.EstablishmentNumber,
-                            EstablishmentPostcode = currentSchool.EstablishmentPostcode,
-                            EmploymentPeriodStartDate = employmentPeriodStartDate,
-                            EmploymentPeriodEndDate = changeDate.AddDays(-1),
+                            LocalAuthorityNumber = school.LocalAuthorityNumber,
+                            EstablishmentNumber = school.EstablishmentNumber,
+                            EstablishmentPostcode = school.EstablishmentPostcode,
+                            EmploymentPeriodStartDate = newStarterStartDate ?? startDateRange,
+                            EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
                             Created = created,
                             Updated = created
                         };
 
                         tpsExtractDataItems.Add(dataItem);
 
-                        currentSchoolIndex = (currentSchoolIndex == numberOfDifferentSchools - 1) ? 0 : currentSchoolIndex + 1;
-                        employmentPeriodStartDate = changeDate;
-                    }
-
-                    // Write out final record to the end the year or leaver date
-                    var lastSchool = availableSchools[currentSchoolIndex];
-                    var lastSchoolDataItem = new TpsExtractDataItem
-                    {
-                        TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                        MemberId = teacher.MemberId,
-                        TeachingStatus = teacher.TeachingStatus,
-                        Trn = teacher.Trn,
-                        FirstName = teacher.FirstName,
-                        LastName = teacher.LastName,
-                        Nino = teacher.Nino,
-                        DateOfBirth = teacher.DateOfBirth,
-                        EmailAddress = teacher.EmailAddress,
-                        MemberPostcode = teacher.MemberPostcode,
-                        FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                        LocalAuthorityNumber = lastSchool.LocalAuthorityNumber,
-                        EstablishmentNumber = lastSchool.EstablishmentNumber,
-                        EstablishmentPostcode = lastSchool.EstablishmentPostcode,
-                        EmploymentPeriodStartDate = employmentPeriodStartDate,
-                        EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
-                        Created = created,
-                        Updated = created
-                    };
-
-                    tpsExtractDataItems.Add(lastSchoolDataItem);
-
-                    // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
-                    if (leaverEndDate.HasValue)
-                    {
-                        var leaverDataItem = new TpsExtractDataItem
+                        // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
+                        if (leaverEndDate.HasValue)
                         {
-                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                            MemberId = teacher.MemberId,
-                            TeachingStatus = "L",
-                            Trn = teacher.Trn,
-                            FirstName = teacher.FirstName,
-                            LastName = teacher.LastName,
-                            Nino = teacher.Nino,
-                            DateOfBirth = teacher.DateOfBirth,
-                            EmailAddress = teacher.EmailAddress,
-                            MemberPostcode = teacher.MemberPostcode,
-                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                            LocalAuthorityNumber = lastSchool.LocalAuthorityNumber,
-                            EstablishmentNumber = lastSchool.EstablishmentNumber,
-                            EstablishmentPostcode = lastSchool.EstablishmentPostcode,
-                            EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
-                            EmploymentPeriodEndDate = endDateRange,
-                            Created = created,
-                            Updated = created
-                        };
+                            var leaverDataItem = new TpsExtractDataItem
+                            {
+                                TpsExtractDataItemId = Guid.NewGuid().ToString(),
+                                MemberId = teacher.MemberId,
+                                TeachingStatus = "L",
+                                Trn = teacher.Trn,
+                                FirstName = teacher.FirstName,
+                                LastName = teacher.LastName,
+                                Nino = teacher.Nino,
+                                DateOfBirth = teacher.DateOfBirth,
+                                EmailAddress = teacher.EmailAddress,
+                                MemberPostcode = teacher.MemberPostcode,
+                                FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
+                                LocalAuthorityNumber = school.LocalAuthorityNumber,
+                                EstablishmentNumber = school.EstablishmentNumber,
+                                EstablishmentPostcode = school.EstablishmentPostcode,
+                                EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
+                                EmploymentPeriodEndDate = endDateRange,
+                                Created = created,
+                                Updated = created
+                            };
 
-                        tpsExtractDataItems.Add(leaverDataItem);
+                            tpsExtractDataItems.Add(leaverDataItem);
+                        }
+
+                        noChangeTeachersGenerated++;
                     }
-
-                    supplyTeachersGenerated++;
                 }
-                else if ((weight > supplyTeacherPercentage && weight <= (supplyTeacherPercentage + changeJobOncePercentage)) && !newStarterStartDate.HasValue)
-                {
-                    // Changed schools once during year (unlikely for new starters I would have thought??)
-                    var changeSchoolStartDate = f.Date.BetweenDateOnly(startDateRange.AddDays(1), endDateRange.AddDays(-1));
-                    var created = f.Date.Recent();
-
-                    var firstSchool = _establishmentGenerationService.Generate();
-                    var firstSchoolDataItem = new TpsExtractDataItem
-                    {
-                        TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                        MemberId = teacher.MemberId,
-                        TeachingStatus = teacher.TeachingStatus,
-                        Trn = teacher.Trn,
-                        FirstName = teacher.FirstName,
-                        LastName = teacher.LastName,
-                        Nino = teacher.Nino,
-                        DateOfBirth = teacher.DateOfBirth,
-                        EmailAddress = teacher.EmailAddress,
-                        MemberPostcode = teacher.MemberPostcode,
-                        FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                        LocalAuthorityNumber = firstSchool.LocalAuthorityNumber,
-                        EstablishmentNumber = firstSchool.EstablishmentNumber,
-                        EstablishmentPostcode = firstSchool.EstablishmentPostcode,
-                        EmploymentPeriodStartDate = startDateRange,
-                        EmploymentPeriodEndDate = changeSchoolStartDate.AddDays(-1),
-                        Created = created,
-                        Updated = created
-                    };
-
-                    var secondSchool = _establishmentGenerationService.Generate();
-                    var secondSchoolDataItem = new TpsExtractDataItem
-                    {
-                        TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                        MemberId = teacher.MemberId,
-                        TeachingStatus = teacher.TeachingStatus,
-                        Trn = teacher.Trn,
-                        FirstName = teacher.FirstName,
-                        LastName = teacher.LastName,
-                        Nino = teacher.Nino,
-                        DateOfBirth = teacher.DateOfBirth,
-                        EmailAddress = teacher.EmailAddress,
-                        MemberPostcode = teacher.MemberPostcode,
-                        FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                        LocalAuthorityNumber = secondSchool.LocalAuthorityNumber,
-                        EstablishmentNumber = secondSchool.EstablishmentNumber,
-                        EstablishmentPostcode = secondSchool.EstablishmentPostcode,
-                        EmploymentPeriodStartDate = changeSchoolStartDate,
-                        EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
-                        Created = created,
-                        Updated = created
-                    };                    
-
-                    tpsExtractDataItems.Add(firstSchoolDataItem);
-                    tpsExtractDataItems.Add(secondSchoolDataItem);
-
-                    // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
-                    if (leaverEndDate.HasValue)
-                    {
-                        var leaverDataItem = new TpsExtractDataItem
-                        {
-                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                            MemberId = teacher.MemberId,
-                            TeachingStatus = "L",
-                            Trn = teacher.Trn,
-                            FirstName = teacher.FirstName,
-                            LastName = teacher.LastName,
-                            Nino = teacher.Nino,
-                            DateOfBirth = teacher.DateOfBirth,
-                            EmailAddress = teacher.EmailAddress,
-                            MemberPostcode = teacher.MemberPostcode,
-                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                            LocalAuthorityNumber = secondSchool.LocalAuthorityNumber,
-                            EstablishmentNumber = secondSchool.EstablishmentNumber,
-                            EstablishmentPostcode = secondSchool.EstablishmentPostcode,
-                            EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
-                            EmploymentPeriodEndDate = endDateRange,
-                            Created = created,
-                            Updated = created
-                        };
-
-                        tpsExtractDataItems.Add(leaverDataItem);
-                    }
-
-                    changeJobTeachersGenerated++;
-                }
-                else
-                {
-                    // Same school all year
-                    var created = f.Date.Recent();
-                    var school = _establishmentGenerationService.Generate();
-                    var dataItem = new TpsExtractDataItem
-                    {
-                        TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                        MemberId = teacher.MemberId,
-                        TeachingStatus = teacher.TeachingStatus,
-                        Trn = teacher.Trn,
-                        FirstName = teacher.FirstName,
-                        LastName = teacher.LastName,
-                        Nino = teacher.Nino,
-                        DateOfBirth = teacher.DateOfBirth,
-                        EmailAddress = teacher.EmailAddress,
-                        MemberPostcode = teacher.MemberPostcode,
-                        FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                        LocalAuthorityNumber = school.LocalAuthorityNumber,
-                        EstablishmentNumber = school.EstablishmentNumber,
-                        EstablishmentPostcode = school.EstablishmentPostcode,
-                        EmploymentPeriodStartDate = newStarterStartDate ?? startDateRange,
-                        EmploymentPeriodEndDate = leaverEndDate ?? endDateRange,
-                        Created = created,
-                        Updated = created
-                    };
-
-                    tpsExtractDataItems.Add(dataItem);
-
-                    // If leaver then for the moment we are going to add an "L" status record starting the day after leaving
-                    if (leaverEndDate.HasValue)
-                    {
-                        var leaverDataItem = new TpsExtractDataItem
-                        {
-                            TpsExtractDataItemId = Guid.NewGuid().ToString(),
-                            MemberId = teacher.MemberId,
-                            TeachingStatus = "L",
-                            Trn = teacher.Trn,
-                            FirstName = teacher.FirstName,
-                            LastName = teacher.LastName,
-                            Nino = teacher.Nino,
-                            DateOfBirth = teacher.DateOfBirth,
-                            EmailAddress = teacher.EmailAddress,
-                            MemberPostcode = teacher.MemberPostcode,
-                            FullOrPartTimeIndicator = teacher.FullOrPartTimeIndicator,
-                            LocalAuthorityNumber = school.LocalAuthorityNumber,
-                            EstablishmentNumber = school.EstablishmentNumber,
-                            EstablishmentPostcode = school.EstablishmentPostcode,
-                            EmploymentPeriodStartDate = leaverEndDate.Value.AddDays(1),
-                            EmploymentPeriodEndDate = endDateRange,
-                            Created = created,
-                            Updated = created
-                        };
-
-                        tpsExtractDataItems.Add(leaverDataItem);
-                    }
-
-                    noChangeTeachersGenerated++;
-                }
-
+                
                 var workforceData = new WorkforceData
                 {
                     Teacher = teacher,
@@ -481,11 +528,14 @@ public class TestDataGenerator
         _logger.LogInformation("Total teachers staying at same school        = {noChangeTeachersGenerated} ({noChangeTeachersActualPercentage}%)", noChangeTeachersGenerated, noChangeTeachersActualPercentage);
     }
 
-    private Faker<Teacher> GetTeacherFaker(Func<string> trnGenerator, Func<FullOrPartTimeIndicatorType> fullOrPartTimeGenerator)
+    private Faker<Teacher> GetTeacherFaker(
+        Func<string> trnGenerator,
+        Func<FullOrPartTimeIndicatorType> fullOrPartTimeGenerator,
+        Func<string> teachingStatusGenerator)
     {
         var teacherFaker = new Faker<Teacher>("en_GB")
            .RuleFor(i => i.MemberId, (f, i) => Guid.NewGuid().ToString())
-           .RuleFor(i => i.TeachingStatus, (f, i) => commonRandomizer.TeachingStatus())
+           .RuleFor(i => i.TeachingStatus, (f, i) => teachingStatusGenerator())
            .RuleFor(i => i.Trn, (f, i) => trnGenerator())
            .RuleFor(i => i.FirstName, (f, i) => f.Name.FirstName(f.PickRandom<Gender>()))
            .RuleFor(i => i.LastName, (f, i) => f.Name.LastName())

@@ -15,10 +15,10 @@ public class TpsExtractDataItemReaderMap : ClassMap<TpsExtractDataItem>
         Map(i => i.FirstName).Index(5);
         Map(i => i.LastName).Index(6);
         Map(i => i.DateOfBirth).Index(7).TypeConverterOption.Format("ddMMyyyy");
-        Map(i => i.EstablishmentPostcode).Index(8);
+        Map(i => i.EstablishmentPostcode).Index(8).TypeConverterOption.NullValues("");
         Map(i => i.EmailAddress).Index(9);
-        Map(i => i.LocalAuthorityNumber).Index(10);
-        Map(i => i.EstablishmentNumber).Index(11);
+        Map(i => i.LocalAuthorityNumber).Index(10).TypeConverterOption.NullValues("");
+        Map(i => i.EstablishmentNumber).Index(11).TypeConverterOption.NullValues("");
         Map(i => i.EmploymentPeriodStartDate).Index(12).TypeConverterOption.Format("ddMMyyyy");
         Map(i => i.EmploymentPeriodEndDate).Index(13).TypeConverterOption.Format("ddMMyyyy");
         Map(i => i.FullOrPartTimeIndicator).Index(14);
