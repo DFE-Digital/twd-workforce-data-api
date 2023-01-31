@@ -13,7 +13,7 @@ public class EstablishmenRawMapping : IEntityTypeConfiguration<EstablishmentRaw>
         builder.Property(e => e.LaCode).HasColumnType("VARCHAR").IsRequired();
         builder.Property(e => e.LaName).HasColumnType("VARCHAR").IsRequired();
         builder.Property(e => e.EstablishmentNumber).HasColumnType("VARCHAR");
-        builder.HasIndex(e => e.EstablishmentNumber).HasDatabaseName(EstablishmentRaw.EstablishmentNumberIndexName);
+        builder.HasIndex(e => new { e.LaCode, e.EstablishmentNumber }).HasDatabaseName(EstablishmentRaw.LaCodeEstablishmentNumberIndexName);
         builder.Property(e => e.EstablishmentName).HasColumnType("VARCHAR").IsRequired();
         builder.Property(e => e.TypeOfEstablishmentCode).HasColumnType("VARCHAR").IsRequired();
         builder.Property(e => e.TypeOfEstablishmentName).HasColumnType("VARCHAR").IsRequired();

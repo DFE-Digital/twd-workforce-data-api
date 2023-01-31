@@ -12,7 +12,7 @@ using WorkforceDataApi.Models;
 namespace WorkforceDataApi.Migrations
 {
     [DbContext(typeof(WorkforceDbContext))]
-    [Migration("20230127151131_AddEstablishmentRawTable")]
+    [Migration("20230130105424_AddEstablishmentRawTable")]
     partial class AddEstablishmentRawTable
     {
         /// <inheritdoc />
@@ -628,8 +628,8 @@ namespace WorkforceDataApi.Migrations
                     b.HasKey("Urn")
                         .HasName("pk_establishments_raw");
 
-                    b.HasIndex("EstablishmentNumber")
-                        .HasDatabaseName("ix_establishment_raw_establishment_number");
+                    b.HasIndex("LaCode", "EstablishmentNumber")
+                        .HasDatabaseName("ix_establishment_raw_la_code_establishment_number");
 
                     b.ToTable("establishments_raw", (string)null);
                 });

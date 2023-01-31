@@ -625,8 +625,8 @@ namespace WorkforceDataApi.Migrations
                     b.HasKey("Urn")
                         .HasName("pk_establishments_raw");
 
-                    b.HasIndex("EstablishmentNumber")
-                        .HasDatabaseName("ix_establishment_raw_establishment_number");
+                    b.HasIndex("LaCode", "EstablishmentNumber")
+                        .HasDatabaseName("ix_establishment_raw_la_code_establishment_number");
 
                     b.ToTable("establishments_raw", (string)null);
                 });

@@ -14,6 +14,7 @@ using WorkforceDataApi.DevUtils.Models.Identity;
 using WorkforceDataApi.DevUtils.Services;
 using WorkforceDataApi.Models;
 using WorkforceDataApi.Services;
+using WorkforceDataApi.Services.BackgroundJobs;
 
 var rootCommand = CreateRootCommand();
 return await rootCommand.InvokeAsync(args);
@@ -21,9 +22,10 @@ return await rootCommand.InvokeAsync(args);
 static RootCommand CreateRootCommand()
 {
     var migrateDatabaseCommand = CreateMigrateDatabaseCommand();
-    var generateMockDataCommand = CreateGenerateMockDataCommand();    
+    var generateMockDataCommand = CreateGenerateMockDataCommand();
     var importTpsCsvCommand = CreateImportTpsCsvCommand();
-    var importEstablishmentsCsvCommand = CreateImportEstablishmentsCsv();
+    var execJobCommand = CreateExecJobCommand();
+    var importEstablishmentsCsvCommand = CreateImportEstablishmentsCsvCommand();
     var azureBlobCommand = CreateAzureBlobCommand();
 
     var rootCommand = new RootCommand("Workforce Data command line developer utilities.")
@@ -31,6 +33,7 @@ static RootCommand CreateRootCommand()
         migrateDatabaseCommand,
         generateMockDataCommand,        
         importTpsCsvCommand,
+        execJobCommand,
         importEstablishmentsCsvCommand,
         azureBlobCommand
     };
@@ -63,9 +66,7 @@ static async Task MigrateDatabase()
     services.AddDbContext<WorkforceDbContext>();
     var sp = services.BuildServiceProvider();
 
-    await using var scope = sp.CreateAsyncScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<WorkforceDbContext>();
-    await dbContext.Database.MigrateAsync();
+    await WithDbContext(dbContext => dbContext.Database.MigrateAsync(), sp);
 }
 
 static Command CreateGenerateMockDataCommand()
@@ -283,7 +284,83 @@ static async Task ImportTpsCsv(string filename)
     logger.LogInformation("Imported TPS Extract CSV");
 }
 
-static Command CreateImportEstablishmentsCsv()
+static Command CreateExecJobCommand()
+{
+    var jobOption = new Option<string>(
+        name: "--job",
+        description: "Name of job to execute.",
+        getDefaultValue: () => "tps-extract")
+        .FromAmong("tps-extract");
+    var overwriteExistingOption = new Option<bool>(
+        name: "--overwrite-existing",
+        description: "Specifies whether to overwrite existing data when executing the job.",
+        getDefaultValue: () => true);
+
+    var execJobCommand = new Command("execjob", "Execute background job.")
+    {
+        jobOption,
+        overwriteExistingOption
+    };
+
+    execJobCommand.SetHandler(
+        ExecJob,
+        jobOption,
+        overwriteExistingOption);
+
+    return execJobCommand;
+}
+
+static async Task ExecJob(
+    string jobName,
+    bool overwriteExisting)
+{
+    var configBuilder = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+        .AddEnvironmentVariables();
+#if DEBUG
+    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
+#endif
+
+    var config = configBuilder.Build();
+
+    var serilog = new LoggerConfiguration()
+        .ReadFrom.Configuration(config)
+        .CreateLogger();
+
+    var services = new ServiceCollection();
+    services.AddSingleton<IConfiguration>(config);
+    services.AddLogging(builder => builder.AddSerilog(serilog));
+    services.AddDbContext<WorkforceDbContext>();
+    services.AddSingleton<ILocalFilesystem, LocalFilesystem>();
+    services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
+    services.AddSingleton<ITpsCsvProcessor, TpsCsvProcessor>();
+    services.AddSingleton<TpsExtractJob>();
+    
+    var sp = services.BuildServiceProvider();
+
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+
+    if (jobName == "tps-extract")
+    {
+        if (overwriteExisting)
+        {
+            logger.LogInformation("Clearing down existing TPS Extract data.");
+            await WithDbContext(dbContext => dbContext.Database.ExecuteSqlRawAsync("Truncate table tps_extract_data_item"), sp);
+            logger.LogInformation("Done.");
+        }
+
+        logger.LogInformation("Executing TPS Extract Job.");
+        var tpsExtractJob = sp.GetRequiredService<TpsExtractJob>();
+        await tpsExtractJob.Execute(CancellationToken.None);
+        logger.LogInformation("Finished TPS Extract Job.");
+    }
+    else
+    {
+        logger.LogWarning("No jobs to execute.");
+    }
+}
+
+static Command CreateImportEstablishmentsCsvCommand()
 {
     var filenameOption = new Option<string>(
         name: "--filename",
@@ -399,12 +476,12 @@ static async Task ListPendingFiles()
     var services = new ServiceCollection();
     services.AddSingleton<IConfiguration>(config);
     services.AddLogging(builder => builder.AddSerilog(serilog));
-    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
     var sp = services.BuildServiceProvider();
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
-    var storageService = sp.GetRequiredService<ICloudStorageService>();
-    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    var storageService = sp.GetRequiredService<ITpsExtractRemoteStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames(CancellationToken.None);
     if (filenames == null || filenames.Length == 0)
     {
         logger.LogInformation("No pending TPS extract files found.");
@@ -448,22 +525,26 @@ static async Task DownloadPending()
     var services = new ServiceCollection();
     services.AddSingleton<IConfiguration>(config);
     services.AddLogging(builder => builder.AddSerilog(serilog));
-    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
     var sp = services.BuildServiceProvider();
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
-    var storageService = sp.GetRequiredService<ICloudStorageService>();
-    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    var storageService = sp.GetRequiredService<ITpsExtractRemoteStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames(CancellationToken.None);
     if (filenames == null || filenames.Length == 0)
     {
         logger.LogInformation("No pending TPS extract files found.");
     }
     else
-    {        
+    {
+        var basePath = Environment.GetFolderPath(
+            Environment.SpecialFolder.CommonApplicationData);
+        var downloadFolder = Path.Combine(basePath, "tps-extract-download");
+
         foreach (var filename in filenames)
         {
             logger.LogInformation("Downloading {filename}", filename);
-            await storageService.DownloadTpsExtractFile(filename);
+            await storageService.DownloadTpsExtractFile(filename, downloadFolder, CancellationToken.None);
             logger.LogInformation("Done.");
         }
     }
@@ -498,12 +579,12 @@ static async Task ArchivePending()
     var services = new ServiceCollection();
     services.AddSingleton<IConfiguration>(config);
     services.AddLogging(builder => builder.AddSerilog(serilog));
-    services.AddSingleton<ICloudStorageService, AzureBlobStorageService>();
+    services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
     var sp = services.BuildServiceProvider();
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
-    var storageService = sp.GetRequiredService<ICloudStorageService>();
-    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames();
+    var storageService = sp.GetRequiredService<ITpsExtractRemoteStorageService>();
+    var filenames = await storageService.GetPendingProcessingTpsExtractFilenames(CancellationToken.None);
     if (filenames == null || filenames.Length == 0)
     {
         logger.LogInformation("No pending TPS extract files found.");
@@ -513,8 +594,15 @@ static async Task ArchivePending()
         foreach (var filename in filenames)
         {
             logger.LogInformation("Archiving {filename}", filename);
-            await storageService.ArchiveTpsExtractFile(filename);
+            await storageService.ArchiveTpsExtractFile(filename, CancellationToken.None);
             logger.LogInformation("Done.");
         }
     }
+}
+
+static async Task WithDbContext(Func<WorkforceDbContext, Task> action, IServiceProvider serviceProvider)
+{
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<WorkforceDbContext>();
+    await action(dbContext);
 }

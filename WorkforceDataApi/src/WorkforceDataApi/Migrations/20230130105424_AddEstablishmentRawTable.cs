@@ -160,9 +160,9 @@ namespace WorkforceDataApi.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_establishment_raw_establishment_number",
+                name: "ix_establishment_raw_la_code_establishment_number",
                 table: "establishments_raw",
-                column: "establishment_number");
+                columns: new[] { "la_code", "establishment_number" });
         }
 
         /// <inheritdoc />

@@ -23,7 +23,7 @@ public class EstablishmentsCsvDownloader : IEstablishmentsCsvDownloader
         response.EnsureSuccessStatusCode();
 
         var stream = await response.Content.ReadAsStreamAsync();
-        using var fs = new FileStream(filename, FileMode.CreateNew);
+        using var fs = new FileStream(filename, FileMode.Create);
         await stream.CopyToAsync(fs);
 
         return filename;

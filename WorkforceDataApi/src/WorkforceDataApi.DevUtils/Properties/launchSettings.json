@@ -24,6 +24,10 @@
       "commandName": "Project",
       "commandLineArgs": "importtpscsv"
     },
+    "WorkforceDataApi.DevUtils execjob --job tps-extract": {
+      "commandName": "Project",
+      "commandLineArgs": "execjob --job tps-extract"
+    },
     "WorkforceDataApi.DevUtils importestablishmentscsv": {
       "commandName": "Project",
       "commandLineArgs": "importestablishmentscsv"

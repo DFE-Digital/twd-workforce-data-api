@@ -2,7 +2,7 @@ namespace WorkforceDataApi.Models;
 
 public class EstablishmentRaw
 {
-    public const string EstablishmentNumberIndexName = "ix_establishment_raw_establishment_number";
+    public const string LaCodeEstablishmentNumberIndexName = "ix_establishment_raw_la_code_establishment_number";    
 
     public required string Urn { get; init; }
     public required string LaCode { get; init; }

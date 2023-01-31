@@ -1,10 +1,15 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Sentry.AspNetCore;
 using Serilog;
+using WorkforceDataApi.Csv;
 using WorkforceDataApi.Models;
 using WorkforceDataApi.Responses;
+using WorkforceDataApi.Services;
+using WorkforceDataApi.Services.BackgroundJobs;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseKestrel(options =>
@@ -50,6 +55,22 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 }
 
+var pgConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+            throw new Exception("Connection string DefaultConnection is missing.");
+
+builder.Services.AddHangfire(
+    configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UsePostgreSqlStorage(pgConnectionString));
+builder.Services.AddHangfireServer();
+builder.Services.AddHostedService<RegisterRecurringJobsHostedService>();
+
+builder.Services.AddSingleton<ILocalFilesystem, LocalFilesystem>();
+builder.Services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
+builder.Services.AddScoped<ITpsCsvProcessor, TpsCsvProcessor>();
+
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
@@ -71,23 +92,6 @@ if (builder.Environment.IsDevelopment())
     });
 }
 
-app.MapGet("/api/v1/tps-extract-data-items", async (int trn, WorkforceDbContext dbContext) =>
-    {
-        var items = await dbContext.TpsExtractDataItems
-            .Where(i => i.Trn == trn.ToString())
-            .Select(i => i.Adapt<GetTpsExtractDataItemResponseBody>())
-            .ToListAsync();
-
-        var response = new GetTpsExtractDataItemsResponse
-        {
-            TpsExtractDataItems = items
-        };
-
-        return Results.Ok(response);
-    })
-    .WithTags("TPS Extract")
-    .Produces<GetTpsExtractDataItemsResponse>(StatusCodes.Status200OK);
-
 app.MapGet("/api/v1/tps-members", async (int trn, WorkforceDbContext dbContext) =>
 {
     var member = await dbContext.TpsExtractDataItems
@@ -107,7 +111,7 @@ app.MapGet("/api/v1/tps-members", async (int trn, WorkforceDbContext dbContext) 
     return Results.Ok(response);
 })
     .WithTags("TPS Extract")
-    .Produces<GetTpsExtractDataItemsResponse>(StatusCodes.Status200OK);
+    .Produces<GetTpsMemberResponse>(StatusCodes.Status200OK);
 
 app.MapGet("/api/v1/tps-extract-data-items", async (string memberId, WorkforceDbContext dbContext) =>
 {

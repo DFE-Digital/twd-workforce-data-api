@@ -18,14 +18,14 @@ public class TpsCsvProcessor : ITpsCsvProcessor
         _logger = logger;
     }
 
-    public async Task Process(string csvFileName)
+    public async Task Process(string fileName)
     {
-        if (!File.Exists(csvFileName))
+        if (!File.Exists(fileName))
         {
-            throw new FileNotFoundException($"The CSV file was not found at {csvFileName}");
+            throw new FileNotFoundException($"The CSV file was not found at {fileName}");
         }
 
-        using var reader = new StreamReader(csvFileName);
+        using var reader = new StreamReader(fileName);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true });
         csv.Context.RegisterClassMap<TpsExtractDataItemReaderMap>();
 
@@ -36,7 +36,7 @@ public class TpsCsvProcessor : ITpsCsvProcessor
             if (i != 0 && i % 10_000 == 0)
             {
                 await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Saved {i} TPS extract data items in Postgres workload database.", i);
+                _logger.LogInformation("Saved {i} TPS extract data items in Postgres workforce database.", i);
             }
 
             i++;
@@ -45,7 +45,7 @@ public class TpsCsvProcessor : ITpsCsvProcessor
         if (_dbContext.ChangeTracker.HasChanges())
         {
             await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Saved {i} TPS extract data items in Postgres workload database.", i);
+            _logger.LogInformation("Saved {i} TPS extract data items in Postgres workforce database.", i);
         }
     }
 }
