@@ -31,7 +31,7 @@ public class TpsExtractJob
         {
             _logger.LogInformation("Found {fileCount} TPS extract files in remote storage which are pending processing.", filenames.Length);
 
-            var basePath = _localFilesystem.GetApplicationDataPath();
+            var basePath = _localFilesystem.GetWorkforceApplicationDataPath();
             var downloadFolder = Path.Combine(basePath, DownloadFolderName);
             var archiveFolder = Path.Combine(downloadFolder, "archive");
 

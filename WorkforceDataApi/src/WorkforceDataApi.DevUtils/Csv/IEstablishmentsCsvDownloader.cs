@@ -2,7 +2,5 @@ namespace WorkforceDataApi.DevUtils.Csv;
 
 public interface IEstablishmentsCsvDownloader
 {
-    string GetLatestEstablishmentsCsvFilename();
-
-    Task<string> DownloadLatest();
+    Task<string> DownloadLatestToFile(string downloadFolder, bool overwriteExisting = false);
 }

@@ -50,8 +50,6 @@ builder.Services.AddDbContext<WorkforceDbContext>();
 
 if (builder.Environment.IsDevelopment())
 {
-    builder.Configuration
-        .AddUserSecrets<Program>();
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 }
 

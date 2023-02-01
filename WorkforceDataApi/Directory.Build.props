@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>Latest</LangVersion>
+    <LangVersion>11.0</LangVersion>
     <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release'">true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
   </PropertyGroup>

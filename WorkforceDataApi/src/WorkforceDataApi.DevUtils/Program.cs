@@ -55,10 +55,9 @@ static Command CreateMigrateDatabaseCommand()
 static async Task MigrateDatabase()
 {
     var configBuilder = new ConfigurationBuilder()
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddJsonFile("appsettings.json")
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
     var services = new ServiceCollection();
@@ -141,10 +140,8 @@ static async Task GenerateMockData(
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-        .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -153,26 +150,25 @@ static async Task GenerateMockData(
         .CreateLogger();
 
     var services = new ServiceCollection();
-    services.AddHttpClient();
+    services.AddSingleton<ILocalFilesystem, LocalFilesystem>();
     services.AddSingleton<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
+    services.AddHttpClient<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
     services.AddSingleton<IEstablishmentGenerationService, EstablishmentGenerationService>();
     services.AddLogging(builder => builder.AddSerilog(serilog));
     services.AddSingleton<TestDataGenerator>();
     var sp = services.BuildServiceProvider();
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
+    var localFilesystem = sp.GetRequiredService<ILocalFilesystem>();
     var establishmentsCsvDownloader = sp.GetRequiredService<IEstablishmentsCsvDownloader>();
-    var latestEstablishmentsCsvFilename = establishmentsCsvDownloader.GetLatestEstablishmentsCsvFilename();
-    if (!File.Exists(latestEstablishmentsCsvFilename))
-    {
-        logger.LogInformation("Downloading latest Establishments CSV");
-        await establishmentsCsvDownloader.DownloadLatest();
-        logger.LogInformation("Downloaded {filename}", latestEstablishmentsCsvFilename);
-    }
-
+    var dataFolder = localFilesystem.GetWorkforceApplicationDataPath();
+    var establishmentsFolder = Path.Combine(dataFolder, "establishments");
+    var latestEstablishmentsCsvFilename = await establishmentsCsvDownloader.DownloadLatestToFile(establishmentsFolder);        
     var establishmentGenerationService = sp.GetRequiredService<IEstablishmentGenerationService>();
     establishmentGenerationService.Initialise(latestEstablishmentsCsvFilename);
 
+    var mockDataFolder = Path.Combine(dataFolder, "mock-data");
+    localFilesystem.CreateDirectory(mockDataFolder);
     var testDataGenerator = sp.GetRequiredService<TestDataGenerator>();
     var testData = testDataGenerator.GenerateTestData(
         DateOnly.FromDateTime(DateTime.Today.AddYears(-1).AddMonths(-1)),
@@ -185,8 +181,8 @@ static async Task GenerateMockData(
         partTimePercentage);    
 
     string dateTimeSuffix = DateTime.Now.ToString("ddMMyyyyHHmmss");
-    string identityUsersCsvFilename = $"mock-teacher-identity-users-{dateTimeSuffix}.csv";
-    string tpsExtractCsvFilename = $"mock-tps-extract-{dateTimeSuffix}.csv";
+    string identityUsersCsvFilename = Path.Combine(mockDataFolder, $"mock-teacher-identity-users-{dateTimeSuffix}.csv");
+    string tpsExtractCsvFilename = Path.Combine(mockDataFolder, $"mock-tps-extract-{dateTimeSuffix}.csv");
     var csvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture)
     {
         HasHeaderRecord = true
@@ -266,10 +262,8 @@ static async Task ImportTpsCsv(string filename)
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -324,11 +318,9 @@ static async Task ExecJob(
     bool overwriteExisting)
 {
     var configBuilder = new ConfigurationBuilder()
-    .AddJsonFile("appsettings.json")
-        .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddJsonFile("appsettings.json")
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -371,41 +363,22 @@ static async Task ExecJob(
 
 static Command CreateImportEstablishmentsCsvCommand()
 {
-    var filenameOption = new Option<string>(
-        name: "--filename",
-        description: "Filename of Establishments CSV to import.",
-        getDefaultValue: () => "edubasealldata20230119.csv");
-    filenameOption.AddAlias("-f");
-
-    var downloadLatestOption = new Option<bool>(
-        name: "--download-latest",
-        description: "Specifies whether to download the latest Establishments CSV file to use in the import.",
-        getDefaultValue: () => true);
-
     var importEstablishmentsCsvCommand = new Command("importestablishmentscsv", "Process Establishments CSV file and insert data into the database.")
     {
-        filenameOption,
-        downloadLatestOption
     };
 
     importEstablishmentsCsvCommand.SetHandler(
-        ImportEstablishmentsCsv,
-        filenameOption,
-        downloadLatestOption);
+        ImportEstablishmentsCsv);
 
     return importEstablishmentsCsvCommand;
 }
 
-static async Task ImportEstablishmentsCsv(
-    string filename,
-    bool downloadLatest)
+static async Task ImportEstablishmentsCsv()
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -417,27 +390,24 @@ static async Task ImportEstablishmentsCsv(
     services.AddSingleton<IConfiguration>(config);
     services.AddLogging(builder => builder.AddSerilog(serilog));
     services.AddDbContext<WorkforceDbContext>();
-    services.AddSingleton<IEstablishmentsCsvProcessor, EstablishmentsCsvProcessor>();
-    if (downloadLatest)
-    {
-        services.AddHttpClient();
-        services.AddSingleton<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
-    }
-    
+    services.AddSingleton<ILocalFilesystem, LocalFilesystem>();
+    services.AddSingleton<IEstablishmentsCsvProcessor, EstablishmentsCsvProcessor>();       
+    services.AddSingleton<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
+    services.AddHttpClient<IEstablishmentsCsvDownloader, EstablishmentsCsvDownloader>();
+
     var sp = services.BuildServiceProvider();
     var logger = sp.GetRequiredService<ILogger<Program>>();
 
-    if (downloadLatest)
-    {
-        logger.LogInformation("Downloading latest Establishments CSV");
-        var establishmentsCsvDownloader = sp.GetRequiredService<IEstablishmentsCsvDownloader>();
-        filename = await establishmentsCsvDownloader.DownloadLatest();
-        logger.LogInformation("Downloaded {filename}", filename);
-    }
+    var localFilesystem = sp.GetRequiredService<ILocalFilesystem>();
+    var establishmentsCsvDownloader = sp.GetRequiredService<IEstablishmentsCsvDownloader>();
+    var dataFolder = localFilesystem.GetWorkforceApplicationDataPath();
+    var establishmentsFolder = Path.Combine(dataFolder, "establishments");
+    var latestEstablishmentsCsvFilename = await establishmentsCsvDownloader.DownloadLatestToFile(establishmentsFolder);
 
     var establishmentsCsvProcessor = sp.GetRequiredService<IEstablishmentsCsvProcessor>();
-    await establishmentsCsvProcessor.Process(filename);
-    logger.LogInformation("Imported Establishments CSV");
+    logger.LogInformation("Importing Establishments CSV from {latestEstablishmentsCsvFilename}.", latestEstablishmentsCsvFilename);
+    await establishmentsCsvProcessor.Process(latestEstablishmentsCsvFilename);
+    logger.LogInformation("Imported Establishments CSV.");
 }
 
 static Command CreateAzureBlobCommand()
@@ -471,10 +441,8 @@ static async Task ListPendingFiles()
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -520,10 +488,8 @@ static async Task DownloadPending()
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 
@@ -535,9 +501,11 @@ static async Task DownloadPending()
     services.AddSingleton<IConfiguration>(config);
     services.AddLogging(builder => builder.AddSerilog(serilog));
     services.AddSingleton<ITpsExtractRemoteStorageService, AzureTpsExtractRemoteStorageService>();
+    services.AddSingleton<ILocalFilesystem, LocalFilesystem>();
     var sp = services.BuildServiceProvider();
 
     var logger = sp.GetRequiredService<ILogger<Program>>();
+    var localFilesystem = sp.GetRequiredService<ILocalFilesystem>();
     var storageService = sp.GetRequiredService<ITpsExtractRemoteStorageService>();
     var filenames = await storageService.GetPendingProcessingTpsExtractFilenames(CancellationToken.None);
     if (filenames == null || filenames.Length == 0)
@@ -546,8 +514,7 @@ static async Task DownloadPending()
     }
     else
     {
-        var basePath = Environment.GetFolderPath(
-            Environment.SpecialFolder.CommonApplicationData);
+        var basePath = localFilesystem.GetWorkforceApplicationDataPath();
         var downloadFolder = Path.Combine(basePath, "tps-extract-download");
 
         foreach (var filename in filenames)
@@ -574,10 +541,8 @@ static async Task ArchivePending()
 {
     var configBuilder = new ConfigurationBuilder()
         .AddJsonFile("appsettings.json")
-            .AddEnvironmentVariables();
-#if DEBUG
-    configBuilder.AddUserSecrets(typeof(Program).Assembly, optional: true);
-#endif
+        .AddEnvironmentVariables()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true);
 
     var config = configBuilder.Build();
 

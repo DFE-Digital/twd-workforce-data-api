@@ -2,7 +2,9 @@ namespace WorkforceDataApi.Services;
 
 public interface ILocalFilesystem
 {
-    string GetApplicationDataPath();
+    string GetWorkforceApplicationDataPath();
+
+    bool FileExists(string path);
 
     string CreateDirectory(string path);
 

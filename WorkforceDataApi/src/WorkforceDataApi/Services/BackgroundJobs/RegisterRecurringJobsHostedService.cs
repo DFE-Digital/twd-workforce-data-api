@@ -4,11 +4,19 @@ namespace WorkforceDataApi.Services.BackgroundJobs;
 
 public class RegisterRecurringJobsHostedService : IHostedService
 {
+    private const string DefaultTpsExtractJobSchedule = "0 0 * * *"; // Midnight daily
     private readonly IRecurringJobManager _recurringJobManager;
+    private readonly ILogger<RegisterRecurringJobsHostedService> _logger;
+    private string _tpsExtractJobSchedule;
 
-    public RegisterRecurringJobsHostedService(IRecurringJobManager recurringJobManager)
+    public RegisterRecurringJobsHostedService(
+        IConfiguration configuration,
+        IRecurringJobManager recurringJobManager,
+        ILogger<RegisterRecurringJobsHostedService> logger)
     {
+        _tpsExtractJobSchedule = configuration.GetValue("TpsExtractJobSchedule", DefaultTpsExtractJobSchedule) ?? DefaultTpsExtractJobSchedule;
         _recurringJobManager = recurringJobManager;
+        _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -21,6 +29,7 @@ public class RegisterRecurringJobsHostedService : IHostedService
 
     private void RegisterJobs()
     {
-        _recurringJobManager.AddOrUpdate<TpsExtractJob>(nameof(TpsExtractJob), job => job.Execute(CancellationToken.None), Cron.MinuteInterval(2));
+        _logger.LogInformation("Adding recurring TPS extract job with CRON expression {schedule}", _tpsExtractJobSchedule);
+        _recurringJobManager.AddOrUpdate<TpsExtractJob>(nameof(TpsExtractJob), job => job.Execute(CancellationToken.None), _tpsExtractJobSchedule);
     }
 }

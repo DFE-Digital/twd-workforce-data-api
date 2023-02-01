@@ -4,9 +4,18 @@ namespace WorkforceDataApi.Services;
 
 public class LocalFilesystem : ILocalFilesystem
 {
-    public string GetApplicationDataPath()
+    private const string WorkforceDataFolderName = "workforce-data";
+
+    public string GetWorkforceApplicationDataPath()
     {
-        return Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            WorkforceDataFolderName);
+    }
+
+    public bool FileExists(string path)
+    {
+        return File.Exists(path);
     }
 
     public string CreateDirectory(string path)

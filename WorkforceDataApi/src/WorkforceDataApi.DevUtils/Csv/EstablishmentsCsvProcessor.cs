@@ -40,8 +40,7 @@ public class EstablishmentsCsvProcessor : IEstablishmentsCsvProcessor
             _dbContext.Establishments.Add(item);
             if (i != 0 && i % 2_000 == 0)
             {
-                await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Saved {i} establishments in Postgres workload database.", i);
+                await SaveChangesAndLog();
             }
 
             i++;
@@ -49,8 +48,13 @@ public class EstablishmentsCsvProcessor : IEstablishmentsCsvProcessor
 
         if (_dbContext.ChangeTracker.HasChanges())
         {
-            await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Saved {i} establishments in Postgres workload database.", i);
+            await SaveChangesAndLog();
         }
-    }
+
+        async Task SaveChangesAndLog()
+        {
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Saved {i} establishments in Postgres workforce database.", i);
+        }
+    }    
 }

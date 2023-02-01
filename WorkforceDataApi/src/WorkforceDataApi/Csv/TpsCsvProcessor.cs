@@ -35,14 +35,18 @@ public class TpsCsvProcessor : ITpsCsvProcessor
             _dbContext.TpsExtractDataItems.Add(item);
             if (i != 0 && i % 10_000 == 0)
             {
-                await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Saved {i} TPS extract data items in Postgres workforce database.", i);
+                await SaveChangesAndLog();
             }
 
             i++;
         }
 
         if (_dbContext.ChangeTracker.HasChanges())
+        {
+            await SaveChangesAndLog();
+        }
+
+        async Task SaveChangesAndLog()
         {
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation("Saved {i} TPS extract data items in Postgres workforce database.", i);
