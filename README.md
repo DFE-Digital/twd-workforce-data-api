@@ -26,6 +26,8 @@ dotnet user-secrets --id WorkforceDataApiDevUtils set ConnectionStrings:DefaultC
 Where `your_postgres_user` and `your_postgres_password` are the username and password of your Postgres installation, respectively.  
 `your_database` can be the name of a new database if you want to create a new one just for workforce_data OR you can specify an existing database as the workforce data will be self-contained in it's own `workforce_data` schema.
 
+If you want to test the end to end process as part of development then you will need to be able to connect to Azure blob storage.
+
 Add a connection string for the blob storage account where test TPS extract CSV files will be located.  
 
 ```shell
@@ -40,6 +42,13 @@ If you want to use a container name in blob storage other than the default of `t
 ```shell
 dotnet user-secrets --id WorkforceDataApi set TpsExtractBlobContainerName "whatever-container-name-you-want"
 dotnet user-secrets --id WorkforceDataApiDevUtils set TpsExtractBlobContainerName "whatever-container-name-you-want"
+```
+
+If you want the background job which downloads the TPS extract CSV files from Azure blob storage and processes them to trigger on a more frequent schedule than one a day at midnight then you can override the `TpsExtractJobSchedule` setting in user secrets too.  
+This should be a valid [CRON expression](https://en.wikipedia.org/wiki/Cron#CRON_expression) e.g. to execute every 2 minutes
+
+```shell
+dotnet user-secrets --id WorkforceDataApi set TpsExtractJobSchedule "*/2 * * * *"
 ```
 
 #### Dev Utils CLI
@@ -165,9 +174,7 @@ As part of testing you might want to use [Azure Storage Explorer](https://learn.
 ### Import Test Identity Users
 
 The `generatemockdata` command generates a CSV file with the prefix `mock-teacher-identity-users-`.  
-This can be imported into a teacher identity database using a utility within the get-an-identity repo.  
-
-This is currently only available in [this branch](https://github.com/DFE-Digital/get-an-identity/tree/add-initial-workforce-data-support) and will run as part of the TeacherIdentity.DevBootstrap console app.
+This can be imported into a teacher identity database using a utility in the [TeacherIdentity.DevBootstrap](https://github.com/DFE-Digital/get-an-identity/tree/main/dotnet-authserver/src/TeacherIdentity.DevBootstrap) console app within the get-an-identity repo. 
 
 Build the TeacherIdentity solution then open a command line at the following location:
 
