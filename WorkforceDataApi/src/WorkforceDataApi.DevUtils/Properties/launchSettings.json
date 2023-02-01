@@ -1,0 +1,49 @@
+{
+  "profiles": {
+    "WorkforceDataApi.DevUtils --help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    },
+    "WorkforceDataApi.DevUtils migratedb": {
+      "commandName": "Project",
+      "commandLineArgs": "migratedb"
+    },
+    "WorkforceDataApi.DevUtils generatemockdata": {
+      "commandName": "Project",
+      "commandLineArgs": "generatemockdata"
+    },
+    "WorkforceDataApi.DevUtils generatemockdata --help": {
+      "commandName": "Project",
+      "commandLineArgs": "generatemockdata --help"
+    },
+    "WorkforceDataApi.DevUtils generatemockdata --teachers 1000": {
+      "commandName": "Project",
+      "commandLineArgs": "generatemockdata --teachers 1000"
+    },
+    "WorkforceDataApi.DevUtils importtpscsv": {
+      "commandName": "Project",
+      "commandLineArgs": "importtpscsv"
+    },
+    "WorkforceDataApi.DevUtils execjob --job tps-extract": {
+      "commandName": "Project",
+      "commandLineArgs": "execjob --job tps-extract"
+    },
+    "WorkforceDataApi.DevUtils importestablishmentscsv": {
+      "commandName": "Project",
+      "commandLineArgs": "importestablishmentscsv"
+    },
+    "WorkforceDataApi.DevUtils azblob listpending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob listpending"
+    },
+    "WorkforceDataApi.DevUtils azblob downloadpending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob downloadpending"
+    },
+
+    "WorkforceDataApi.DevUtils azblob archivepending": {
+      "commandName": "Project",
+      "commandLineArgs": "azblob archivepending"
+    }
+  }
+}
